@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Academic Nexus Portal",
+  "projectType": "saas",
+  "projectName": "Academic Nexus Portal",
+  "projectDescription": "A full-stack academic management platform built with React and Laravel that provides role-based dashboards for administrators, lecturers, and students to manage courses, attendance, grades, fees, and institutional operations.",
   "theme": "almond",
-  "colors": {
-    "primary": "#e55b6b",
-    "light": "#6767e3",
-    "dark": "#0c0c0c"
-  },
-  "favicon": "https://media.brand.dev/fb9ca0c6-e572-43f1-8205-108c2d7377e2.jpg",
-  "logo": {
-    "light": "https://media.brand.dev/4e1f9589-b1f7-49da-bfd7-71a7050c618b.svg",
-    "dark": "https://media.brand.dev/4e1f9589-b1f7-49da-bfd7-71a7050c618b.svg"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/FrankEWallace/academicportal"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/FrankEWallace/academicportal"
-    }
-  },
+  "primaryColor": "#e55b6b",
+  "lightColor": "#6767e3",
+  "darkColor": "#0c0c0c",
   "navigation": {
     "tabs": [
       {
@@ -116,5 +99,49 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Multi-role system with Admin, Lecturer, and Student dashboards",
+    "Course enrollment with prerequisite checking and waitlist management",
+    "Attendance tracking and real-time grade management",
+    "Fee structures, invoicing, and payment processing",
+    "Degree progress tracking and transcript generation",
+    "Accommodation (hostel) allocation and management",
+    "Continuous assessment and results moderation workflow",
+    "Academic calendar and timetable management",
+    "Bulk import for students, teachers, and course data",
+    "Document request system with downloadable forms"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/auth/logout",
+    "GET /api/auth/me",
+    "GET /api/student/dashboard",
+    "GET /api/student/grades",
+    "GET /api/student/attendance",
+    "GET /api/student/fees",
+    "GET /api/student/academics/gpa-summary",
+    "GET /api/student/enrollment/summary",
+    "POST /api/student/enrollment/confirm",
+    "GET /api/student/accommodation/current",
+    "POST /api/student/feedback/submit",
+    "GET /api/lecturer/ca/courses",
+    "PUT /api/lecturer/ca/scores/{assessmentId}",
+    "POST /api/lecturer/results/bulk-update",
+    "POST /api/lecturer/results/courses/{courseId}/submit-moderation",
+    "GET /api/admin/dashboard",
+    "GET /api/admin/students",
+    "GET /api/admin/teachers",
+    "GET /api/admin/courses",
+    "GET /api/admin/enrollments",
+    "POST /api/admin/enrollments/{id}/approve",
+    "GET /api/admin/fee-structures",
+    "POST /api/admin/invoices/bulk",
+    "GET /api/admin/accommodations/rooms",
+    "POST /api/admin/backups",
+    "GET /api/admin/settings",
+    "GET /api/timetables/student/{studentId}",
+    "GET /api/academic-calendar/upcoming",
+    "GET /api/degree-progress/student/{studentId}"
+  ]
 }

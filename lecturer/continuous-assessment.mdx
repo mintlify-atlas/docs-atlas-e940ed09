@@ -1,0 +1,226 @@
+---
+title: "Enter and manage continuous assessment scores"
+description: "Step-by-step guide to viewing course rosters, entering CA scores individually or in bulk, locking scores, and submitting for admin approval."
+---
+
+The Continuous Assessment (CA) module lets you enter, update, and submit student scores for coursework that runs throughout the semester. Scores are entered per student and per assessment record, validated against a configured maximum, then locked and submitted to the admin for approval before they contribute to a student's final grade. The CA module is accessed via the **CA Management** tab on the lecturer dashboard at `/lecturer`.
+
+## Workflow overview
+
+<Steps>
+  <Step title="View your assigned courses">
+    Call `GET /api/lecturer/ca/courses` to retrieve the list of courses assigned to your account. Each course object includes the course code, title, semester, total enrolled students, number of CA scores already submitted, and whether scores are locked.
+
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "id": 3,
+          "course_code": "CS301",
+          "title": "Data Structures",
+          "semester_code": "2025-1",
+          "academic_year": "2025/2026",
+          "lecturer_id": 12,
+          "department": { "id": 1, "name": "Computer Science" }
+        }
+      ]
+    }
+    ```
+
+    In the UI, click **Manage Scores** next to a course to load the student roster for that course.
+  </Step>
+
+  <Step title="View enrolled students">
+    Call `GET /api/lecturer/ca/courses/{courseId}/students` to retrieve all active enrollments for the selected course. Only students with `status: "active"` are returned.
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "course": { "id": 3, "course_code": "CS301" },
+        "students": [
+          {
+            "id": 101,
+            "student_number": "CS/2023/001",
+            "name": "Jane Okafor",
+            "email": "jane.okafor@university.edu",
+            "enrollment_id": 55
+          }
+        ],
+        "total_students": 45
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Review existing CA scores">
+    Before entering new scores, call `GET /api/lecturer/ca/courses/{courseId}/scores` to see which assessments already have scores recorded. Results are grouped by student and include each assessment's type, number, current score, maximum score, weight, and weighted contribution.
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "course": { "id": 3, "course_code": "CS301" },
+        "scores": [
+          {
+            "student_id": 101,
+            "student_number": "CS/2023/001",
+            "name": "Jane Okafor",
+            "assessments": [
+              {
+                "id": 88,
+                "type": "test",
+                "number": 1,
+                "score": 18,
+                "max_score": 20,
+                "weight": 0.5,
+                "weighted_score": 9.0,
+                "percentage": 90.0,
+                "locked_at": null,
+                "approval_status": "pending"
+              }
+            ],
+            "total_weighted": 9.0
+          }
+        ],
+        "is_locked": false
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Enter or update a single score">
+    To update one student's assessment score, send a `PUT` request to `/api/lecturer/ca/scores/{assessmentId}`. The `score` field is required and must not exceed the assessment's configured `max_score`. An optional `remarks` field accepts up to 500 characters.
+
+    ```json
+    {
+      "score": 24,
+      "remarks": "Strong performance on section B"
+    }
+    ```
+
+    A successful response returns the updated assessment record with the recalculated `weighted_score`.
+
+    ```json
+    {
+      "success": true,
+      "message": "Score updated successfully",
+      "data": {
+        "id": 88,
+        "score": 24,
+        "max_score": 30,
+        "weighted_score": 12.0,
+        "approval_status": "pending"
+      }
+    }
+    ```
+
+    <Note>
+      The server rejects any score that exceeds `max_score` with a `422` response. Scores on locked assessments are also rejected with a `403` response.
+    </Note>
+  </Step>
+
+  <Step title="Bulk update scores for multiple students">
+    Use `POST /api/lecturer/ca/scores/bulk-update` to submit scores for several students in a single request. Send an array of objects, each containing `assessment_id` and `score`. All updates run in a database transaction — if a fatal error occurs, no scores are saved.
+
+    ```json
+    {
+      "scores": [
+        { "assessment_id": 88, "score": 24, "remarks": "Strong" },
+        { "assessment_id": 89, "score": 19 },
+        { "assessment_id": 90, "score": 27, "remarks": "Excellent" }
+      ]
+    }
+    ```
+
+    The response reports how many records were updated and lists any per-record errors (for example, if a score exceeded its maximum or belonged to a different lecturer's course).
+
+    ```json
+    {
+      "success": true,
+      "message": "Updated 3 assessment(s)",
+      "data": {
+        "updated": 3,
+        "errors": []
+      }
+    }
+    ```
+
+    <Tip>
+      Entries that fail validation are skipped and reported in the `errors` array, but valid entries in the same request are still saved. Review the error list after each bulk update.
+    </Tip>
+  </Step>
+
+  <Step title="Lock scores to prevent further edits">
+    When you are satisfied that all scores for a course are correct, lock them with `POST /api/lecturer/ca/courses/{courseId}/lock`. This sets a `locked_at` timestamp on every unlocked assessment in the course, preventing any further changes.
+
+    ```json
+    {
+      "success": true,
+      "message": "Locked 45 assessment(s)",
+      "data": {
+        "locked_count": 45,
+        "total_count": 45
+      }
+    }
+    ```
+
+    <Warning>
+      **Locking is irreversible.** Once scores are locked, neither you nor any other lecturer can edit them. Only an administrator can unlock a course, and this requires raising a support request within your institution. Ensure all scores are correct before locking.
+    </Warning>
+  </Step>
+
+  <Step title="Submit scores for admin approval">
+    After locking, submit the course scores to the admin approval queue with `POST /api/lecturer/ca/courses/{courseId}/submit-approval`. This marks all assessments as `submitted_for_approval` and places them in the admin's pending list.
+
+    ```json
+    {
+      "success": true,
+      "message": "Submitted 45 assessment(s) for approval",
+      "data": {
+        "submitted_count": 45,
+        "total_count": 45
+      }
+    }
+    ```
+
+    The course will now appear in the admin's CA approval queue. The admin reviews the scores and either approves or rejects the submission. You will be notified of the outcome, and rejected submissions must be corrected and resubmitted.
+  </Step>
+</Steps>
+
+## API endpoint reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/lecturer/ca/courses` | List assigned courses |
+| `GET` | `/api/lecturer/ca/courses/{courseId}/students` | List active students in a course |
+| `GET` | `/api/lecturer/ca/courses/{courseId}/scores` | View existing CA scores, grouped by student |
+| `PUT` | `/api/lecturer/ca/scores/{assessmentId}` | Update a single assessment score |
+| `POST` | `/api/lecturer/ca/scores/bulk-update` | Update multiple scores in one request |
+| `POST` | `/api/lecturer/ca/courses/{courseId}/lock` | Lock all scores in a course |
+| `POST` | `/api/lecturer/ca/courses/{courseId}/submit-approval` | Submit locked scores for admin approval |
+| `GET` | `/api/lecturer/ca/statistics` | View aggregate CA statistics |
+
+## What happens after submission
+
+Once you submit scores for approval, the workflow moves to the admin side:
+
+1. The admin sees the submission in their CA pending approval list (`GET /api/admin/results/ca/pending`).
+2. The admin reviews the scores and approves (`POST /api/admin/results/ca/{id}/approve`) or rejects (`POST /api/admin/results/ca/{id}/reject`) the submission.
+3. If approved, the CA scores are incorporated into students' academic records.
+4. If rejected, the `approval_status` returns to `rejected` and you will need to unlock (via admin) and resubmit corrected scores.
+
+<Info>
+  CA scores do **not** go live for students until an admin approves them. Submitting for approval does not immediately update student grade views.
+</Info>
+
+## Score validation rules
+
+| Rule | Detail |
+|------|--------|
+| Score must be numeric | Non-numeric values return a `422` error |
+| Score must be ≥ 0 | Negative values are rejected |
+| Score must not exceed `max_score` | The backend enforces this per assessment record |
+| Assessment must not be locked | Locked assessments return `403 Forbidden` |
+| Lecturer must own the course | Cross-course updates return `403 Unauthorized` |

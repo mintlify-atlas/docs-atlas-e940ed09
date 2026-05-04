@@ -1,0 +1,104 @@
+---
+title: "Track your attendance records and absences"
+description: "View attendance per course, see absence counts, understand attendance thresholds, and use the timetable page to see upcoming scheduled classes."
+---
+
+The portal records your attendance for every scheduled class session. You can view your attendance history at any time, broken down by course, and see the overall percentage that appears on your dashboard. Understanding your attendance standing early in a semester gives you time to address absences before they affect your academic standing.
+
+## Viewing your attendance
+
+To retrieve your full attendance record across all enrolled courses:
+
+```http
+GET /api/student/attendance
+```
+
+This endpoint returns attendance grouped by course. Each entry includes the course name, total sessions scheduled, sessions you attended, sessions you were absent, sessions marked as late, and the calculated attendance percentage for that course.
+
+To retrieve attendance for a specific student by ID — useful if you need to verify a particular student's record or if you are viewing your own ID explicitly:
+
+```http
+GET /api/students/{studentId}/attendance
+```
+
+<Info>
+Both endpoints require the `attendance.read` permission, which is granted to the `student` role by default. A student can only retrieve their own attendance record; the server enforces this at the data layer.
+</Info>
+
+## What an attendance record shows
+
+Each attendance entry in the response represents a single class session and contains the following fields:
+
+| Field | Description |
+|---|---|
+| `course_name` | The name of the course the session belongs to. |
+| `date` | The date of the session in `YYYY-MM-DD` format. |
+| `status` | One of `present`, `absent`, or `late`. |
+| `marked_at` | The timestamp at which the lecturer recorded the attendance. |
+
+<AccordionGroup>
+  <Accordion title="Present">
+    You attended the session and were recorded before the late cutoff. This counts fully toward your attendance percentage.
+  </Accordion>
+  <Accordion title="Late">
+    You attended the session but arrived after the cutoff time set by the lecturer. Late marks may or may not count as present depending on your institution's policy — check with your department for the exact rule applied.
+  </Accordion>
+  <Accordion title="Absent">
+    No attendance was recorded for you in that session. Repeated absences reduce your percentage and may trigger academic warnings.
+  </Accordion>
+</AccordionGroup>
+
+## Attendance percentage calculation
+
+Your overall attendance percentage is:
+
+```
+attendance_percentage = (sessions_present / total_sessions) × 100
+```
+
+The dashboard displays this figure under the **Attendance** stat card. The label beneath the percentage is determined as follows:
+
+- **Excellent attendance** — 90 % or above
+- **Good attendance** — 75 % to 89 %
+- **Needs improvement** — below 75 %
+
+<Warning>
+Many institutions enforce a minimum attendance threshold (commonly 75 %) for a student to be eligible to sit examinations. Falling below this threshold in any course may result in automatic debarment from that course's exam. Confirm the exact policy with your academic department.
+</Warning>
+
+## How attendance is marked
+
+Lecturers mark attendance for their assigned courses using the teacher-side attendance interface. The lecturer submits a `POST /api/teacher/attendance` request with a list of student IDs and a status value for each. The records are written immediately and become visible on your dashboard and in the attendance endpoints above.
+
+You cannot edit or dispute an attendance record through the portal directly. If you believe a mark is incorrect, contact your lecturer or department administrator.
+
+## Viewing your scheduled classes
+
+Your upcoming class sessions are visible on the timetable page at `/student/timetable`. This page uses the data from:
+
+```http
+GET /api/timetables/student/{studentId}
+```
+
+The timetable shows the day, time, room, and course for each session in your current week. Cross-referencing your timetable with your attendance record is the most efficient way to spot any sessions that may have been missed or incorrectly recorded.
+
+<Tip>
+Download a PDF copy of your timetable at `GET /api/student/timetable/download` so you have an offline reference to compare against your attendance records.
+</Tip>
+
+## API reference summary
+
+<CardGroup cols={2}>
+  <Card title="My attendance" icon="calendar-check">
+    `GET /api/student/attendance`
+  </Card>
+  <Card title="Student attendance by ID" icon="user-check">
+    `GET /api/students/{studentId}/attendance`
+  </Card>
+  <Card title="Timetable" icon="clock">
+    `GET /api/timetables/student/{studentId}`
+  </Card>
+  <Card title="Timetable download" icon="file-arrow-down">
+    `GET /api/student/timetable/download`
+  </Card>
+</CardGroup>

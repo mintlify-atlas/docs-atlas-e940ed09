@@ -1,0 +1,509 @@
+---
+title: "Admin endpoints: settings, academic years, and backups"
+description: "API reference for managing system settings, configuring academic years and semesters, grading scales, creating database backups, and bulk data imports."
+---
+
+These endpoints control the underlying configuration of the Academic Nexus Portal: key-value system settings, academic year and semester records that drive all date-based logic, database backups for disaster recovery, and bulk CSV import tools for onboarding large cohorts of students, teachers, or courses.
+
+<Note>
+  All endpoints in this group require `Authorization: Bearer {token}` and the authenticated user must have the role `admin`.
+</Note>
+
+---
+
+## System settings
+
+Settings are stored as key-value pairs and are optionally categorised and typed. They control site-wide behaviour such as maintenance mode, registration windows, and grading rules.
+
+### List all settings
+
+**GET** `/api/admin/settings`
+
+Returns all system settings. Accepts an optional `category` query parameter to filter by category.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/settings?category=system' \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.settings" type="array">
+  Array of setting objects, each with `key`, `value`, `type`, `category`, `description`, and `is_public` fields.
+</ResponseField>
+
+### Get a single setting
+
+**GET** `/api/admin/settings/{key}`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/settings/registration_open \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.key" type="string">The setting key.</ResponseField>
+<ResponseField name="data.value" type="any">The current value, cast to the stored type.</ResponseField>
+
+### Update a setting
+
+**PUT** `/api/admin/settings/{key}`
+
+<ParamField body="value" type="any" required>
+  New value for the setting.
+</ParamField>
+
+<ParamField body="type" type="string">
+  Data type: `string`, `number`, `boolean`, `json`, or `date`. Defaults to `string`.
+</ParamField>
+
+<ParamField body="category" type="string">
+  Category for grouping (e.g. `general`, `system`, `academic`). Defaults to `general`.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Human-readable description of what this setting controls.
+</ParamField>
+
+<ParamField body="is_public" type="boolean">
+  If `true`, this setting is exposed to all authenticated users via `GET /api/settings/public`.
+</ParamField>
+
+```bash cURL
+curl --request PUT \
+  --url https://your-domain.com/api/admin/settings/registration_open \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "value": true, "type": "boolean" }'
+```
+
+### Delete a setting
+
+**DELETE** `/api/admin/settings/{key}`
+
+### Bulk update settings
+
+**POST** `/api/admin/settings/bulk-update`
+
+Updates multiple settings in a single request.
+
+<ParamField body="settings" type="object" required>
+  An object where each key is a setting key and each value is an object with `value`, and optionally `type` and `category`.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/settings/bulk-update \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "settings": {
+      "registration_open": { "value": true, "type": "boolean" },
+      "max_courses_per_student": { "value": 6, "type": "number" }
+    }
+  }'
+```
+
+### Initialize default settings
+
+**POST** `/api/admin/settings/initialize-defaults`
+
+Seeds the system with the application's built-in default settings. Safe to run on a fresh installation; existing settings are not overwritten.
+
+### Clear settings cache
+
+**POST** `/api/admin/settings/clear-cache`
+
+Flushes the settings cache, forcing the next request to re-read from the database. Use this after direct database edits.
+
+### Toggle maintenance mode
+
+**POST** `/api/admin/settings/maintenance-mode`
+
+Enables or disables maintenance mode. When enabled, the portal displays a maintenance message to non-admin users.
+
+<ParamField body="enabled" type="boolean" required>
+  `true` to enable maintenance mode, `false` to disable.
+</ParamField>
+
+<ParamField body="message" type="string">
+  Custom maintenance message shown to users. If omitted, the existing `maintenance_message` setting is unchanged.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/settings/maintenance-mode \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "enabled": true,
+    "message": "Scheduled maintenance: 02:00–04:00 UTC. We will be back shortly."
+  }'
+```
+
+---
+
+## Academic years
+
+Academic years group semesters and drive date-based logic throughout the portal. Only one academic year can be active at a time.
+
+### List academic years
+
+**GET** `/api/admin/academic-years`
+
+### Get active academic year
+
+**GET** `/api/admin/academic-years/active`
+
+Returns the single currently active academic year.
+
+### Create academic year
+
+**POST** `/api/admin/academic-years`
+
+<ParamField body="name" type="string" required>
+  Display name (e.g. `2026/2027`).
+</ParamField>
+
+<ParamField body="start_date" type="string" required>
+  ISO 8601 start date.
+</ParamField>
+
+<ParamField body="end_date" type="string" required>
+  ISO 8601 end date.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/academic-years \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "2026/2027",
+    "start_date": "2026-09-01",
+    "end_date": "2027-06-30"
+  }'
+```
+
+### Get academic year
+
+**GET** `/api/admin/academic-years/{academicYear}`
+
+### Update academic year
+
+**PUT** `/api/admin/academic-years/{academicYear}`
+
+### Activate academic year
+
+**POST** `/api/admin/academic-years/{academicYear}/activate`
+
+Sets this academic year as active and deactivates all others.
+
+### Delete academic year
+
+**DELETE** `/api/admin/academic-years/{academicYear}`
+
+---
+
+## Semesters
+
+Semesters belong to an academic year and define the registration, enrollment, and exam windows.
+
+### List semesters
+
+**GET** `/api/admin/semesters`
+
+### Get active semester
+
+**GET** `/api/admin/semesters/active`
+
+### Create semester
+
+**POST** `/api/admin/semesters`
+
+<ParamField body="name" type="string" required>
+  Semester name (e.g. `Semester 1 2026/27`).
+</ParamField>
+
+<ParamField body="academic_year_id" type="integer" required>
+  ID of the parent academic year.
+</ParamField>
+
+<ParamField body="start_date" type="string" required>
+  ISO 8601 start date.
+</ParamField>
+
+<ParamField body="end_date" type="string" required>
+  ISO 8601 end date.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/semesters \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "Semester 1 2026/27",
+    "academic_year_id": 3,
+    "start_date": "2026-09-01",
+    "end_date": "2027-01-31"
+  }'
+```
+
+### Get semester
+
+**GET** `/api/admin/semesters/{semester}`
+
+### Update semester
+
+**PUT** `/api/admin/semesters/{semester}`
+
+### Delete semester
+
+**DELETE** `/api/admin/semesters/{semester}`
+
+---
+
+## Backups
+
+The backup endpoints create, verify, download, and restore database backups. Backups are stored as compressed files on the server.
+
+### List backups
+
+**GET** `/api/admin/backups`
+
+Returns all backup files with metadata including filename, file size, and creation timestamp.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/backups \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.backups" type="array">
+  Array of backup file objects with `filename`, `size`, and `created_at`.
+</ResponseField>
+
+<ResponseField name="data.stats" type="object">
+  Aggregate statistics (total count, total size, oldest and newest backup).
+</ResponseField>
+
+### Get backup statistics
+
+**GET** `/api/admin/backups/stats`
+
+Returns aggregate backup statistics without the full file list.
+
+### Create backup
+
+**POST** `/api/admin/backups`
+
+Triggers a full database backup. The operation runs synchronously and may take several seconds on large databases.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/backups \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data" type="object">
+  Metadata for the newly created backup file.
+</ResponseField>
+
+### Download backup
+
+**GET** `/api/admin/backups/{filename}/download`
+
+Returns the backup file as a `application/zip` download.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/backups/backup-2026-05-04.zip/download \
+  --header 'Authorization: Bearer {token}' \
+  --output backup-2026-05-04.zip
+```
+
+### Verify backup
+
+**GET** `/api/admin/backups/{filename}/verify`
+
+Checks the integrity of a backup file without restoring it.
+
+<ResponseField name="data" type="object">
+  Verification result including whether the file is valid and any detected issues.
+</ResponseField>
+
+### Restore from backup
+
+**POST** `/api/admin/backups/{filename}/restore`
+
+<Warning>
+  This operation overwrites the live database with the contents of the backup file. All data created after the backup was taken will be permanently lost. This action cannot be undone. Ensure you have created a fresh backup of the current state before restoring.
+</Warning>
+
+Restores the database from the specified backup file. The portal should be placed in maintenance mode before triggering a restore.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/backups/backup-2026-05-04.zip/restore \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Delete backup
+
+**DELETE** `/api/admin/backups/{filename}`
+
+Permanently deletes the backup file from the server.
+
+---
+
+## Bulk import
+
+Allows administrators to upload CSV files to create multiple records in a single operation. This is the recommended approach for onboarding large cohorts at the start of an academic year.
+
+### Upload CSV for import
+
+**POST** `/api/admin/bulk-import/upload`
+
+The request must be sent as `multipart/form-data`.
+
+<ParamField body="file" type="file" required>
+  CSV file containing the records to import.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Record type to import: `students`, `teachers`, or `courses`.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/bulk-import/upload \
+  --header 'Authorization: Bearer {token}' \
+  --form 'type=students' \
+  --form 'file=@students-2026.csv'
+```
+
+<ResponseField name="data" type="object">
+  Import job details including job ID, status, and initial counts.
+</ResponseField>
+
+### List import jobs
+
+**GET** `/api/admin/bulk-import/imports`
+
+Returns all previous import jobs with their status and outcome counts.
+
+### Get import job status
+
+**GET** `/api/admin/bulk-import/imports/{id}`
+
+Returns the current status of a specific import job, including how many records succeeded, failed, and are pending.
+
+### Delete import job
+
+**DELETE** `/api/admin/bulk-import/imports/{id}`
+
+Removes an import job record. Does not undo already-created records.
+
+### Retry failed import
+
+**POST** `/api/admin/bulk-import/imports/{id}/retry`
+
+Re-processes failed rows from a previous import job.
+
+### Download CSV template
+
+**GET** `/api/admin/bulk-import/templates/{type}`
+
+Returns a CSV template file for the specified type (`students`, `teachers`, or `courses`) showing the required column headers.
+
+---
+
+## Accommodation admin
+
+Administrators manage hostel rooms and student allocations through these endpoints.
+
+### List hostels
+
+**GET** `/api/admin/accommodations/hostels`
+
+### List all rooms
+
+**GET** `/api/admin/accommodations/rooms`
+
+### List available rooms
+
+**GET** `/api/admin/accommodations/rooms/available`
+
+Returns rooms with at least one unoccupied bed.
+
+### List pending allocations
+
+**GET** `/api/admin/accommodations/pending`
+
+Returns accommodation applications awaiting an allocation decision.
+
+### Get accommodation statistics
+
+**GET** `/api/admin/accommodations/statistics`
+
+Returns occupancy rates, total beds, and allocation counts per hostel.
+
+### Allocate accommodation
+
+**POST** `/api/admin/accommodations/{id}/allocate`
+
+Assigns a room to a student application.
+
+### Vacate accommodation
+
+**POST** `/api/admin/accommodations/{id}/vacate`
+
+Marks a room as vacated by the current occupant.
+
+### Bulk allocate
+
+**POST** `/api/admin/accommodations/bulk-allocate`
+
+Processes multiple allocation decisions in a single request.
+
+---
+
+## Feedback admin
+
+Admins can view, assign, and update the status of feedback submitted by students.
+
+### List feedback
+
+**GET** `/api/admin/feedback`
+
+Returns all feedback submissions. Supports filters by `status`, `priority`, and `category`.
+
+### List unassigned feedback
+
+**GET** `/api/admin/feedback/unassigned`
+
+Returns feedback that has not yet been assigned to a staff member.
+
+### Get feedback statistics
+
+**GET** `/api/admin/feedback/statistics`
+
+Returns counts by status, priority, and category.
+
+### Assign feedback
+
+**POST** `/api/admin/feedback/{id}/assign`
+
+Assigns a feedback item to a staff member for resolution.
+
+### Change feedback priority
+
+**POST** `/api/admin/feedback/{id}/change-priority`
+
+Updates the priority level of a feedback item (`low`, `medium`, `high`, `critical`).
+
+### Update feedback status
+
+**PUT** `/api/admin/feedback/{id}/update-status`
+
+Updates the resolution status of a feedback item (e.g. `open`, `in_progress`, `resolved`, `closed`).

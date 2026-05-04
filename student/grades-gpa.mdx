@@ -1,0 +1,183 @@
+---
+title: "View grades, GPA, and degree progress"
+description: "View per-course grades, cumulative GPA calculation, semester breakdown, and the degree progress tracker showing remaining graduation requirements."
+---
+
+The Academic Nexus Portal gives you a layered view of your academic performance. You can start from a high-level GPA summary, drill into a semester-by-semester breakdown, then go further into the individual assignment and exam scores that make up any given course grade. A separate degree progress tracker shows how your completed courses map against your program's graduation requirements.
+
+## Viewing your grades
+
+To retrieve all grades on record for your account:
+
+```http
+GET /api/student/grades
+```
+
+The response lists each course alongside the grade that has been submitted and published by your lecturer. Grades that are still pending moderation are not visible here until an administrator publishes them.
+
+## GPA summary
+
+The GPA summary endpoint returns your current cumulative GPA together with supporting statistics used to populate the dashboard:
+
+```http
+GET /api/student/academics/gpa-summary
+```
+
+<AccordionGroup>
+  <Accordion title="Response fields">
+    | Field | Description |
+    |---|---|
+    | `gpa.current_gpa` | Your cumulative GPA as a decimal. |
+    | `gpa.courses_completed` | Total number of courses with a final grade. |
+    | `gpa.total_credits` | Sum of credit hours from completed courses. |
+    | `assignment_performance.total_assignments` | Number of assignments graded so far. |
+    | `assignment_performance.average_score` | Mean score across all assignments as a percentage. |
+    | `assignment_performance.highest_score` | Highest individual assignment score. |
+    | `assignment_performance.lowest_score` | Lowest individual assignment score. |
+    | `grade_distribution` | Object mapping each letter grade to a count (e.g. `{"A": 3, "B+": 1}`). |
+    | `recent_trend.trend_direction` | One of `improving`, `stable`, or `declining`. |
+    | `recent_trend.recent_course_average` | Average course grade over the last six months. |
+    | `recent_trend.recent_assignment_average` | Average assignment score over the last six months. |
+  </Accordion>
+</AccordionGroup>
+
+## Per-course grade breakdown
+
+To see the individual components that make up a course grade — continuous assessment scores, exam result, and the final weighted total:
+
+```http
+GET /api/student/academics/course/{courseId}/breakdown
+```
+
+This is the most detailed view available at the course level and is useful for understanding exactly how your final grade was calculated.
+
+## Historical academic records
+
+To view your complete academic history across all semesters you have attended:
+
+```http
+GET /api/student/academics/historical
+```
+
+The response is grouped by semester and includes final grades, GPA for each period, and total credits earned.
+
+## Semester-specific performance
+
+To narrow the view to a single semester, pass the semester code (for example `2024-S1`):
+
+```http
+GET /api/student/academics/semester/{semesterCode}
+```
+
+<Info>
+The semester code format is defined by your institution's academic year configuration. Check the academic calendar or contact the registrar if you are unsure of the correct code for a past semester.
+</Info>
+
+## Degree progress tracker
+
+The degree progress tracker maps your completed courses against the requirements of your enrolled degree program. Access it from the **Progress** page at `/student/progress`, which calls:
+
+```http
+GET /api/degree-progress/student/{studentId}
+```
+
+The response shows:
+
+- **Completed requirements** — courses you have passed that satisfy a program requirement.
+- **Remaining requirements** — outstanding mandatory and elective courses needed for graduation.
+- **Completion percentage** — an overall figure representing how close you are to fulfilling all requirements.
+
+To view only the outstanding requirements:
+
+```http
+GET /api/degree-progress/student/{studentId}/remaining
+```
+
+To retrieve the full transcript view used by the progress tracker:
+
+```http
+GET /api/degree-progress/student/{studentId}/transcript
+```
+
+<Tip>
+The degree progress tracker at `/student/progress` renders the same data visually. Use it for a quick overview; use the API endpoints above when you need the raw data, for example to verify a specific requirement has been satisfied.
+</Tip>
+
+## Transcript download
+
+To download your official transcript as a file:
+
+```http
+GET /api/student/academics/transcript/download
+```
+
+The server returns the transcript as a downloadable PDF. The document includes all historical grades, GPA figures, and credit hour totals.
+
+## GPA grading scale
+
+GPA is calculated using the following letter-grade-to-grade-point mapping:
+
+| Letter grade | Grade points |
+|---|---|
+| A+ | 4.0 |
+| A | 4.0 |
+| A− | 3.7 |
+| B+ | 3.3 |
+| B | 3.0 |
+| B− | 2.7 |
+| C+ | 2.3 |
+| C | 2.0 |
+| C− | 1.7 |
+| D | 1.0 |
+| F | 0.0 |
+
+Cumulative GPA is the sum of (grade points × course credits) divided by the total number of credit hours attempted. You can verify letter grade calculations via the grade-points utility endpoint:
+
+<CodeGroup>
+
+```http Calculate letter grade
+POST /api/grade-points/calculate
+```
+
+```json Request body
+{
+  "score": 87.5
+}
+```
+
+</CodeGroup>
+
+To retrieve the full grade-point table as configured by your institution:
+
+```http
+GET /api/grade-points
+```
+
+## API reference summary
+
+<CardGroup cols={2}>
+  <Card title="All grades" icon="star">
+    `GET /api/student/grades`
+  </Card>
+  <Card title="GPA summary" icon="trending-up">
+    `GET /api/student/academics/gpa-summary`
+  </Card>
+  <Card title="Course breakdown" icon="chart-bar">
+    `GET /api/student/academics/course/{courseId}/breakdown`
+  </Card>
+  <Card title="Historical records" icon="clock-rotate-left">
+    `GET /api/student/academics/historical`
+  </Card>
+  <Card title="Semester performance" icon="calendar">
+    `GET /api/student/academics/semester/{semesterCode}`
+  </Card>
+  <Card title="Degree progress" icon="graduation-cap">
+    `GET /api/degree-progress/student/{studentId}`
+  </Card>
+  <Card title="Transcript download" icon="file-arrow-down">
+    `GET /api/student/academics/transcript/download`
+  </Card>
+  <Card title="Grading scale" icon="calculator">
+    `GET /api/grade-points`
+  </Card>
+</CardGroup>

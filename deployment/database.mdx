@@ -1,0 +1,193 @@
+---
+title: "Set up and seed the MySQL database"
+description: "Configure MySQL 8.0 for Academic Nexus Portal, run Laravel migrations to create all tables, seed demo data, and understand the core data model."
+---
+
+Academic Nexus Portal uses MySQL 8.0 as its primary data store. Laravel's migration system manages the schema, and a set of database seeders populates the database with demo students, teachers, courses, and an admin account so you can explore the portal immediately after setup. This page covers creating the database, running migrations, seeding demo data, and understanding the tables that power the system.
+
+## Requirements
+
+- MySQL 8.0 or higher
+- A MySQL user with `CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, `DELETE`, and `INDEX` privileges on the target database
+- PHP 8.2+ and Composer installed (to run Artisan commands)
+
+## Create the database
+
+Connect to MySQL and create the database before running migrations.
+
+```sql
+CREATE DATABASE academic_nexus_portal CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Then configure the connection in `laravel-backend/.env`:
+
+```bash .env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=academic_nexus_portal
+DB_USERNAME=root
+DB_PASSWORD=your_password
+```
+
+## Run migrations and seed data
+
+<Steps>
+  <Step title="Run migrations">
+    Creates all tables from the migration files in `laravel-backend/database/migrations/`.
+
+    ```bash
+    php artisan migrate
+    ```
+  </Step>
+  <Step title="Seed demo data">
+    Populates the database with sample students, teachers, courses, departments, and an admin account.
+
+    ```bash
+    php artisan db:seed
+    ```
+
+    After seeding, you can log in with the following credentials:
+
+    | Role | Email | Password |
+    |---|---|---|
+    | Admin | admin@academic-nexus.com | admin123 |
+    | Teacher | john.smith@academic-nexus.com | teacher123 |
+    | Student | john.doe@student.academic-nexus.com | student123 |
+  </Step>
+</Steps>
+
+## Reset and re-seed
+
+Use these commands during development to restore the database to a clean state.
+
+| Command | Effect |
+|---|---|
+| `php artisan migrate` | Apply any pending migrations |
+| `php artisan migrate:fresh` | Drop all tables and re-run all migrations |
+| `php artisan db:seed` | Seed data into the current schema |
+| `php artisan migrate:fresh --seed` | Drop, re-migrate, and re-seed in one step |
+
+<Warning>
+  `php artisan migrate:fresh` drops every table and all its data. Never run this command against a production database.
+</Warning>
+
+## Database schema
+
+The portal's schema covers authentication, academic records, financial management, accommodation, and system configuration. The tables are grouped by domain below.
+
+### Authentication and users
+
+| Table | Purpose |
+|---|---|
+| `users` | Core authentication records — email, password hash, and role assignment for all system users |
+| `students` | Extended student profiles linked to `users` — student ID, program, year of study, and academic data |
+| `teachers` | Faculty profiles linked to `users` — department, qualifications, and employment details |
+
+### Academic structure
+
+| Table | Purpose |
+|---|---|
+| `departments` | Academic department definitions — name, code, and head of department |
+| `courses` | Course catalog — course code, title, credit hours, department, and scheduling information |
+| `enrollments` | Student course registrations — links students to courses for a given semester |
+| `timetables` | Weekly class schedules — maps courses to rooms, days, and time slots |
+| `academic_calendars` | Institution calendar events — semester start/end dates, exam periods, and holidays |
+| `academic_years` | Academic year definitions used to scope records |
+| `semesters` | Semester definitions within each academic year |
+
+### Attendance and grades
+
+| Table | Purpose |
+|---|---|
+| `attendances` | Daily attendance records — student, course, date, and present/absent status |
+| `grades` | Final grade records per enrollment |
+| `continuous_assessments` | Coursework and mid-semester assessment scores |
+| `final_exams` | Final examination results pending moderation |
+| `grade_points` | GPA calculation lookup table |
+| `grading_scales` | Institution grading scale definitions |
+
+### Financial records
+
+| Table | Purpose |
+|---|---|
+| `fees` | Student fee records for a given period |
+| `fee_structures` | Fee schedule definitions — amounts per program or level |
+| `invoices` | Generated invoices issued to students |
+| `payments` | Payment transaction records linked to invoices |
+
+### Registration and enrollment workflow
+
+| Table | Purpose |
+|---|---|
+| `registrations` | Semester course registration requests submitted by students |
+| `enrollment_confirmations` | Admin approval records for registration requests |
+| `enrollment_confirmation_courses` | Individual course lines within an enrollment confirmation |
+| `course_waitlists` | Queue of students waiting for a full course |
+
+### Hostel and accommodation
+
+| Table | Purpose |
+|---|---|
+| `hostels` | Hostel building records — name, capacity, and gender assignment |
+| `rooms` | Individual room records within a hostel |
+| `student_accommodations` | Student room assignments — links students to rooms for a given period |
+| `accommodation_fees` | Fee records for hostel accommodation |
+| `accommodation_amenities` | Amenity records associated with rooms or hostels |
+| `accommodation_roommates` | Roommate relationship records |
+
+### Degree programs and progress
+
+| Table | Purpose |
+|---|---|
+| `degree_programs` | Program definitions — name, code, duration, and department |
+| `program_requirements` | Required courses and credit hours for each program |
+| `semester_summaries` | Aggregated GPA and credit hour summaries per student per semester |
+
+### Assessments and feedback
+
+| Table | Purpose |
+|---|---|
+| `assignments` | Assignment definitions created by teachers |
+| `assignment_submissions` | Student submission records for assignments |
+| `assignment_grades` | Grades awarded for individual assignment submissions |
+| `student_feedbacks` | Student feedback submissions about courses or teachers |
+| `feedback_responses` | Admin or teacher responses to student feedback |
+| `feedback_attachments` | File attachments associated with feedback records |
+
+### Student services
+
+| Table | Purpose |
+|---|---|
+| `document_requests` | Student requests for official documents such as transcripts or letters |
+| `student_insurance` | Student insurance enrollment records |
+| `announcements` | Institution-wide announcements visible across all dashboards |
+| `notifications` | Per-user notification records |
+| `notification_preferences` | User preferences for notification delivery |
+
+### System configuration
+
+| Table | Purpose |
+|---|---|
+| `system_settings` | Key-value store for institution-wide configuration |
+| `import_logs` | Audit log for bulk data import operations |
+| `enrollment_audit_logs` | Audit trail for enrollment status changes |
+| `registration_audit_logs` | Audit trail for registration approval and rejection events |
+| `grade_uploads` | Bulk grade upload job records |
+| `password_reset_tokens` | Temporary tokens for the password reset flow |
+
+## Backup and restore
+
+Use standard MySQL tooling to back up and restore the database.
+
+```bash
+# Backup
+mysqldump -u root -p academic_nexus_portal > backup.sql
+
+# Restore
+mysql -u root -p academic_nexus_portal < backup.sql
+```
+
+<Tip>
+  Schedule automated backups using a cron job or your hosting platform's backup feature. The admin API also exposes a backup endpoint — see the [API reference](/api-reference) for details.
+</Tip>

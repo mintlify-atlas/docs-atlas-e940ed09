@@ -1,0 +1,210 @@
+---
+title: "Manage fee structures, invoices, and payments"
+description: "How admins configure fee structures by program and semester, generate bulk invoices, record payments, issue refunds, and view financial statistics."
+---
+
+The Fees Management page at `/admin/fees` provides a unified interface for the institution's financial operations. The `FeesManagement` component organises the workspace into three tabs — **Fee Structures**, **Invoices**, and **Payments** — each backed by its own set of API endpoints. Summary statistics (total revenue, pending payments, overdue amounts, and paid invoice counts) are loaded at the top of the page on every visit.
+
+## Fee statistics
+
+```bash
+GET /api/admin/payments/stats
+Authorization: Bearer {token}
+```
+
+```json Statistics response
+{
+  "total_revenue": 1240000.00,
+  "collection_rate": 87.3,
+  "pending_payments": 158400.00,
+  "partial_invoices": 42,
+  "overdue_amount": 23400.00,
+  "overdue_invoices": 18,
+  "paid_invoices": 634,
+  "total_students": 1234
+}
+```
+
+## Fee structures
+
+Fee structures define the amount owed by students in a given program and semester. They are the foundation from which invoices are generated.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/fee-structures` | List all fee structures |
+| `POST` | `/api/admin/fee-structures` | Create a fee structure |
+| `GET` | `/api/admin/fee-structures/{id}` | Retrieve a fee structure |
+| `PUT` | `/api/admin/fee-structures/{id}` | Update a fee structure |
+| `DELETE` | `/api/admin/fee-structures/{id}` | Delete a fee structure |
+| `GET` | `/api/admin/fee-structures/program-semester` | Filter by program and semester |
+| `GET` | `/api/admin/fee-structures/overdue` | List overdue fee structures |
+
+### Creating a fee structure
+
+<CodeGroup>
+
+```bash Request
+POST /api/admin/fee-structures
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json Body
+{
+  "program_id": 7,
+  "semester_id": 3,
+  "tuition_fee": 5000.00,
+  "accommodation_fee": 800.00,
+  "lab_fee": 200.00,
+  "due_date": "2026-02-28"
+}
+```
+
+</CodeGroup>
+
+### Filtering by program and semester
+
+```bash
+GET /api/admin/fee-structures/program-semester?program_id=7&semester_id=3
+Authorization: Bearer {token}
+```
+
+<Info>
+  Use `GET /api/admin/fee-structures/overdue` to identify fee structures whose due dates have passed but still have unpaid balances. This is useful for generating targeted follow-up invoices.
+</Info>
+
+## Invoices
+
+Invoices are generated from fee structures and issued to individual students or in bulk for an entire semester cohort.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/invoices` | List all invoices |
+| `POST` | `/api/admin/invoices` | Create an individual invoice |
+| `POST` | `/api/admin/invoices/bulk` | Generate invoices in bulk |
+| `GET` | `/api/admin/invoices/overdue` | List overdue invoices |
+| `GET` | `/api/admin/invoices/student/{studentId}` | Invoices for a specific student |
+
+### Creating an individual invoice
+
+```bash
+POST /api/admin/invoices
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "student_id": 42,
+  "fee_structure_id": 5,
+  "due_date": "2026-02-28",
+  "notes": "Late enrollment — reduced session fee applies."
+}
+```
+
+### Bulk invoice generation
+
+Generate invoices for all students enrolled in a semester in a single operation. This is the standard workflow at the start of each academic term.
+
+<Steps>
+  <Step title="Trigger bulk generation">
+    ```bash
+    POST /api/admin/invoices/bulk
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "semester_id": 3,
+      "fee_structure_id": 5,
+      "due_date": "2026-02-28"
+    }
+    ```
+  </Step>
+  <Step title="Review overdue invoices">
+    After the due date, pull the overdue list to identify students who have not paid.
+
+    ```bash
+    GET /api/admin/invoices/overdue
+    Authorization: Bearer {token}
+    ```
+  </Step>
+</Steps>
+
+## Payments
+
+Payments are recorded against invoices. Admins can log cash or bank-transfer payments manually, and issue refunds when required.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/payments` | List all payments |
+| `POST` | `/api/admin/payments` | Record a payment |
+| `GET` | `/api/admin/payments/stats` | Payment statistics |
+| `POST` | `/api/admin/payments/{id}/refund` | Issue a refund |
+
+### Recording a payment
+
+<CodeGroup>
+
+```bash Request
+POST /api/admin/payments
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json Body
+{
+  "invoice_id": 88,
+  "amount": 5000.00,
+  "payment_method": "bank_transfer",
+  "reference": "TXN-20260115-0042",
+  "paid_at": "2026-01-15T11:30:00Z"
+}
+```
+
+</CodeGroup>
+
+### Issuing a refund
+
+```bash
+POST /api/admin/payments/{id}/refund
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "amount": 500.00,
+  "reason": "Student withdrew from one course before the census date."
+}
+```
+
+<Warning>
+  Refunds cannot exceed the original payment amount. Partial refunds are supported by specifying an `amount` less than the full payment value.
+</Warning>
+
+### Payment statistics
+
+The stats endpoint returns aggregated financial data useful for reporting and dashboard summaries:
+
+```bash
+GET /api/admin/payments/stats
+Authorization: Bearer {token}
+```
+
+```json
+{
+  "total_collected": 1240000.00,
+  "total_refunded": 12000.00,
+  "net_revenue": 1228000.00,
+  "payments_this_month": 84,
+  "refunds_this_month": 3
+}
+```

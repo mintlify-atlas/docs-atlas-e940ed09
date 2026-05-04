@@ -1,0 +1,188 @@
+---
+title: "Deploy the Laravel API backend"
+description: "Configure and deploy the Academic Nexus Portal Laravel 11 backend — set environment variables, run migrations, optimize for production, and start the server."
+---
+
+The Academic Nexus Portal backend is a Laravel 11 application located in the `laravel-backend/` directory. It exposes a RESTful API consumed by the React frontend, handles authentication via Laravel Sanctum, and uses MySQL 8.0 as its data store. This page walks through environment configuration, database setup, production optimizations, and server startup.
+
+## Prerequisites
+
+<CardGroup cols={3}>
+  <Card title="PHP 8.2+" icon="php">
+    Required to run Laravel 11. Check with `php --version`.
+  </Card>
+  <Card title="Composer" icon="box">
+    PHP dependency manager. Install from [getcomposer.org](https://getcomposer.org).
+  </Card>
+  <Card title="MySQL 8.0+" icon="database">
+    The database backend. Create the `academic_nexus_portal` database before running migrations.
+  </Card>
+</CardGroup>
+
+## Configure environment variables
+
+Navigate into the `laravel-backend/` directory for all commands on this page.
+
+<Steps>
+  <Step title="Copy the example environment file">
+    ```bash
+    cp .env.example .env
+    ```
+  </Step>
+  <Step title="Generate the application key">
+    Laravel uses `APP_KEY` to encrypt cookies and session data. Generate it once — do not change it after data is in production.
+
+    ```bash
+    php artisan key:generate
+    ```
+  </Step>
+  <Step title="Edit .env with your values">
+    Open `.env` and configure the variables described below.
+  </Step>
+</Steps>
+
+### Application settings
+
+```bash .env
+APP_NAME="Academic Nexus Portal Backend"
+APP_ENV=production        # Use "local" for development
+APP_KEY=                  # Populated by php artisan key:generate
+APP_DEBUG=false           # Set to false in production
+APP_TIMEZONE=UTC
+APP_URL=https://api.yourdomain.com
+```
+
+<Warning>
+  Never set `APP_DEBUG=true` in production. Debug mode exposes stack traces and environment variables in error responses.
+</Warning>
+
+### Database settings
+
+```bash .env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=academic_nexus_portal
+DB_USERNAME=root
+DB_PASSWORD=your_secure_password
+```
+
+### CORS and Sanctum settings
+
+The frontend runs on port 8080 and the backend on port 8000. Laravel Sanctum needs to know the frontend domain so it can issue stateful session cookies and validate requests.
+
+<CodeGroup>
+
+```bash Development
+SANCTUM_STATEFUL_DOMAINS=localhost:8080
+SESSION_DOMAIN=localhost
+FRONTEND_URL=http://localhost:8080
+```
+
+```bash Production
+SANCTUM_STATEFUL_DOMAINS=yourdomain.com
+SESSION_DOMAIN=.yourdomain.com
+FRONTEND_URL=https://yourdomain.com
+```
+
+</CodeGroup>
+
+<Note>
+  If the frontend and backend are on different domains (cross-origin), ensure your web server sends the correct `Access-Control-Allow-Origin` response header in addition to the Sanctum configuration above.
+</Note>
+
+## Install dependencies
+
+<CodeGroup>
+
+```bash Production
+# Installs packages without dev dependencies and optimizes autoloader
+composer install --optimize-autoloader --no-dev
+```
+
+```bash Development
+# Installs all packages including dev dependencies
+composer install
+```
+
+</CodeGroup>
+
+## Run the setup script
+
+The repository includes `setup.sh` in `laravel-backend/` that automates directory creation, permissions, key generation, and package discovery.
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+The script creates the required `storage/` and `bootstrap/cache/` directories, sets permissions, copies `.env.example` to `.env` if not present, generates the app key, runs package discovery, and creates the storage symlink.
+
+<Tip>
+  Run `setup.sh` on a fresh clone or new server before running migrations. Skip it if `.env` is already configured and the storage directories exist.
+</Tip>
+
+## Database setup
+
+```bash
+# Create all tables from migration files
+php artisan migrate
+
+# Populate tables with demo students, teachers, courses, and admin user
+php artisan db:seed
+```
+
+See [Set up and seed the MySQL database](/deployment/database) for a full breakdown of tables and seeded data.
+
+## Production optimizations
+
+Cache configuration, routes, and views to eliminate file-system reads on every request.
+
+```bash
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+<Note>
+  After caching, changes to `.env` or route/config files will not take effect until you re-run the cache commands or clear the cache with `php artisan config:clear`, `php artisan route:clear`, and `php artisan view:clear`.
+</Note>
+
+## Start the server
+
+<CodeGroup>
+
+```bash Development
+# Binds to all interfaces on port 8000
+php artisan serve --host=0.0.0.0 --port=8000
+```
+
+```bash Production (nginx + php-fpm)
+# Point your Nginx server block to the laravel-backend/public/ directory
+# and let php-fpm handle PHP execution — do not use artisan serve in production
+```
+
+</CodeGroup>
+
+<Warning>
+  `php artisan serve` is a single-threaded development server and is not suitable for production traffic. Use Nginx with PHP-FPM, Apache with mod_php, or a platform like Laravel Forge, Ploi, or Fly.io for production deployments.
+</Warning>
+
+The API will be available at `http://localhost:8000/api` during local development.
+
+## Key artisan commands reference
+
+| Command | Purpose |
+|---|---|
+| `php artisan key:generate` | Generate `APP_KEY` |
+| `php artisan migrate` | Run pending database migrations |
+| `php artisan db:seed` | Seed demo data |
+| `php artisan migrate:fresh --seed` | Drop all tables, re-migrate, and re-seed |
+| `php artisan config:cache` | Cache configuration for production |
+| `php artisan route:cache` | Cache routes for production |
+| `php artisan view:cache` | Cache Blade views for production |
+| `php artisan config:clear` | Clear configuration cache |
+| `php artisan route:clear` | Clear route cache |
+| `php artisan route:list` | List all registered API routes |
+| `php artisan serve --host=0.0.0.0 --port=8000` | Start the development server |
+| `php artisan storage:link` | Create the public storage symlink |

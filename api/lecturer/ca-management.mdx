@@ -1,0 +1,280 @@
+---
+title: "Lecturer CA endpoints: score entry and approval"
+description: "API reference for continuous assessment management — list courses, view student scores, update individual or bulk scores, lock, and submit for approval."
+---
+
+The continuous assessment (CA) endpoints let lecturers manage scored components for each of their assigned courses. Scores can be entered individually or in bulk, locked to prevent further edits, and submitted to the admin approval queue once all scores are finalised.
+
+<Note>
+  All endpoints in this group require `Authorization: Bearer {token}` in the request header. The authenticated user must have the role `lecturer`. Requests from users with other roles are rejected with `403 Forbidden`.
+</Note>
+
+---
+
+## List assigned courses
+
+Returns all courses where the authenticated lecturer is the assigned instructor, ordered by semester (descending) then course code.
+
+**GET** `/api/lecturer/ca/courses`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/ca/courses \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of course objects.
+  <Expandable title="course object">
+    <ResponseField name="id" type="integer">Course ID.</ResponseField>
+    <ResponseField name="course_code" type="string">Short course identifier (e.g. `CS301`).</ResponseField>
+    <ResponseField name="name" type="string">Full course name.</ResponseField>
+    <ResponseField name="semester_code" type="string">Semester the course runs in.</ResponseField>
+    <ResponseField name="department" type="object">Nested department object with `id` and `name`.</ResponseField>
+    <ResponseField name="semester" type="object">Nested semester object with `id` and `name`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## List students in a course
+
+Returns all actively enrolled students for the given course. The lecturer must own the course or the request returns `404`.
+
+**GET** `/api/lecturer/ca/courses/{courseId}/students`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/ca/courses/12/students \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.course" type="object">
+  Summary of the course.
+</ResponseField>
+
+<ResponseField name="data.students" type="array">
+  <Expandable title="student object">
+    <ResponseField name="id" type="integer">Student ID.</ResponseField>
+    <ResponseField name="student_number" type="string">Institutional student number.</ResponseField>
+    <ResponseField name="name" type="string">Full name.</ResponseField>
+    <ResponseField name="email" type="string">Email address.</ResponseField>
+    <ResponseField name="enrollment_id" type="integer">ID of the enrollment record.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data.total_students" type="integer">
+  Total number of active enrollments.
+</ResponseField>
+
+---
+
+## Get CA scores for a course
+
+Returns all continuous assessment records for a course, grouped by student. Each record includes score, weighted score, percentage, lock status, and approval status.
+
+**GET** `/api/lecturer/ca/courses/{courseId}/scores`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/ca/courses/12/scores \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.course" type="object">
+  Course summary.
+</ResponseField>
+
+<ResponseField name="data.scores" type="array">
+  Students with their assessment breakdown.
+  <Expandable title="student score object">
+    <ResponseField name="student_id" type="integer">Student ID.</ResponseField>
+    <ResponseField name="student_number" type="string">Institutional student number.</ResponseField>
+    <ResponseField name="name" type="string">Student full name.</ResponseField>
+    <ResponseField name="assessments" type="array">
+      <Expandable title="assessment item">
+        <ResponseField name="id" type="integer">Assessment record ID.</ResponseField>
+        <ResponseField name="type" type="string">Assessment type (e.g. `test`, `assignment`).</ResponseField>
+        <ResponseField name="number" type="integer">Assessment number within the type.</ResponseField>
+        <ResponseField name="score" type="number">Marks awarded.</ResponseField>
+        <ResponseField name="max_score" type="number">Maximum marks available.</ResponseField>
+        <ResponseField name="weight" type="number">Weight as a percentage of total CA.</ResponseField>
+        <ResponseField name="weighted_score" type="number">Score multiplied by weight.</ResponseField>
+        <ResponseField name="percentage" type="number">Score as a percentage of max_score.</ResponseField>
+        <ResponseField name="locked_at" type="string">ISO 8601 timestamp when locked, or `null`.</ResponseField>
+        <ResponseField name="approval_status" type="string">`pending`, `approved`, or `rejected`.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="total_weighted" type="number">Sum of all weighted scores for the student.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data.is_locked" type="boolean">
+  `true` if any assessment for this course has been locked.
+</ResponseField>
+
+---
+
+## Update a single assessment score
+
+Updates the `score` and optional `remarks` on one assessment record. The assessment must not be locked.
+
+**PUT** `/api/lecturer/ca/scores/{assessmentId}`
+
+<ParamField body="score" type="number" required>
+  Numeric score to record. Must be between `0` and the assessment's `max_score`.
+</ParamField>
+
+<ParamField body="remarks" type="string">
+  Optional notes about the score. Maximum 500 characters.
+</ParamField>
+
+```bash cURL
+curl --request PUT \
+  --url https://your-domain.com/api/lecturer/ca/scores/45 \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "score": 18.5,
+    "remarks": "Good performance on section B"
+  }'
+```
+
+<ResponseField name="data" type="object">
+  The updated assessment record with recalculated `weighted_score`.
+</ResponseField>
+
+---
+
+## Bulk update scores
+
+Updates multiple assessment records in a single transaction. Records that are locked, unauthorised, or exceed `max_score` are skipped and listed in `data.errors`.
+
+**POST** `/api/lecturer/ca/scores/bulk-update`
+
+<ParamField body="scores" type="array" required>
+  Array of score update objects.
+  <Expandable title="score object">
+    <ParamField body="scores[].assessment_id" type="integer" required>
+      ID of the continuous assessment record to update.
+    </ParamField>
+    <ParamField body="scores[].score" type="number" required>
+      Numeric score. Must be `>= 0` and `<= max_score`.
+    </ParamField>
+    <ParamField body="scores[].remarks" type="string">
+      Optional notes. Maximum 500 characters.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/lecturer/ca/scores/bulk-update \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "scores": [
+      { "assessment_id": 45, "score": 18.5, "remarks": "Excellent" },
+      { "assessment_id": 46, "score": 14.0 },
+      { "assessment_id": 47, "score": 20.0 }
+    ]
+  }'
+```
+
+<ResponseField name="data.updated" type="integer">
+  Number of records successfully updated.
+</ResponseField>
+
+<ResponseField name="data.errors" type="array">
+  Descriptions of any records that could not be updated (locked, unauthorised, or score exceeded max).
+</ResponseField>
+
+---
+
+## Lock CA scores
+
+<Warning>
+  Locking is irreversible from the lecturer's side. Once scores are locked you cannot modify them. Scores can only be unlocked by an admin rejecting the submission. Lock only when all scores are final.
+</Warning>
+
+Locks every unlocked assessment record in the course. Locked records can no longer be edited with `PUT /api/lecturer/ca/scores/{assessmentId}` or the bulk update endpoint.
+
+**POST** `/api/lecturer/ca/courses/{courseId}/lock`
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/lecturer/ca/courses/12/lock \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.locked_count" type="integer">
+  Number of assessments that were locked by this request.
+</ResponseField>
+
+<ResponseField name="data.total_count" type="integer">
+  Total number of assessment records in the course.
+</ResponseField>
+
+---
+
+## Submit scores for admin approval
+
+Submits all assessments in the course to the admin approval queue. Already-submitted assessments are skipped.
+
+**POST** `/api/lecturer/ca/courses/{courseId}/submit-approval`
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/lecturer/ca/courses/12/submit-approval \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.submitted_count" type="integer">
+  Number of assessments newly submitted for approval.
+</ResponseField>
+
+<ResponseField name="data.total_count" type="integer">
+  Total number of assessment records in the course.
+</ResponseField>
+
+---
+
+## Get statistics
+
+Returns aggregate counts across all courses assigned to the authenticated lecturer: total assessments, how many are locked, pending approval, approved, and rejected.
+
+**GET** `/api/lecturer/ca/statistics`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/ca/statistics \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.total_courses" type="integer">
+  Number of courses assigned to the lecturer.
+</ResponseField>
+
+<ResponseField name="data.total_assessments" type="integer">
+  Total assessment records across all courses.
+</ResponseField>
+
+<ResponseField name="data.locked_assessments" type="integer">
+  Number of records with a non-null `locked_at` timestamp.
+</ResponseField>
+
+<ResponseField name="data.pending_approval" type="integer">
+  Records submitted but not yet reviewed by an admin.
+</ResponseField>
+
+<ResponseField name="data.approved_assessments" type="integer">
+  Records approved by an admin.
+</ResponseField>
+
+<ResponseField name="data.rejected_assessments" type="integer">
+  Records rejected by an admin and returned for correction.
+</ResponseField>

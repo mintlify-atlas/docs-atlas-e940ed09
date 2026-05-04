@@ -1,0 +1,263 @@
+---
+title: "GET /api/student/dashboard — student overview data"
+description: "Returns dashboard data for the authenticated student: enrolled courses, recent attendance records, GPA, fee status, and published announcements."
+---
+
+The student dashboard endpoint aggregates the most relevant data for an authenticated student into a single response: enrolled course count, attendance percentage, recent grades, today's scheduled classes, fee status, and recent announcements. All endpoints in this section require the `student` role.
+
+<Note>All endpoints on this page require `Authorization: Bearer {token}` and the authenticated user must have the `student` role.</Note>
+
+---
+
+## GET /api/student/dashboard
+
+Returns an aggregated overview of the student's current academic status.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/dashboard \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="student_info" type="object" required>
+      Student record including linked `user` (name, email) and `department` objects.
+    </ResponseField>
+    <ResponseField name="current_gpa" type="number" required>
+      The student's current cumulative GPA on a 4.0 scale.
+    </ResponseField>
+    <ResponseField name="total_credits" type="number" required>
+      Total credit hours earned.
+    </ResponseField>
+    <ResponseField name="enrolled_courses" type="number" required>
+      Count of courses with `status = "enrolled"` in the current semester.
+    </ResponseField>
+    <ResponseField name="attendance_percentage" type="number" required>
+      Overall attendance percentage across all courses, rounded to two decimal places.
+    </ResponseField>
+    <ResponseField name="recent_grades" type="object[]" required>
+      Up to 5 most recent grade records, each including `course` details, `grade_point`, and `grade_letter`.
+    </ResponseField>
+    <ResponseField name="today_classes" type="object[]" required>
+      Courses scheduled for today, derived from each course's `schedule` field.
+    </ResponseField>
+    <ResponseField name="recent_announcements" type="object[]" required>
+      Up to 5 published announcements targeted to students or the student's department.
+    </ResponseField>
+    <ResponseField name="fee_status" type="object" required>
+      <Expandable title="properties">
+        <ResponseField name="paid_amount" type="number">
+          Total amount paid across all fee records.
+        </ResponseField>
+        <ResponseField name="pending_amount" type="number">
+          Total amount on pending (not yet due) fee records.
+        </ResponseField>
+        <ResponseField name="overdue_amount" type="number">
+          Total amount on overdue fee records.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /api/student/courses
+
+Returns all course enrollments for the authenticated student, each with course details, department, and linked teacher information.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/courses \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object[]" required>
+  Array of enrollment records. Each enrollment includes `enrollment_date`, `status`, and a nested `course` object with `course_code`, `course_name`, `credits`, `department`, and `teacher`.
+</ResponseField>
+
+---
+
+## GET /api/student/grades
+
+Returns all grade records for the authenticated student, grouped by course name.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/grades \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object" required>
+  A keyed object where each key is a course name and the value is an array of grade records for that course. Each record includes `grade_point`, `grade_letter`, and `assessment_date`.
+</ResponseField>
+
+---
+
+## GET /api/student/attendance
+
+Returns attendance records and a per-course summary for the authenticated student. Supports optional query parameters `course_id` and `month` to filter results.
+
+```bash
+curl --request GET \
+  --url 'https://your-domain.com/api/student/attendance?month=5' \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="attendance_records" type="object[]">
+      Individual attendance entries ordered by date descending. Each includes `date`, `status` (`present` or `absent`), and nested `course`.
+    </ResponseField>
+    <ResponseField name="summary" type="object[]">
+      Per-course summary with `total_classes`, `present_count`, and `attendance_percentage`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /api/student/fees
+
+Returns all fee records for the authenticated student, ordered by due date descending.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/fees \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object[]" required>
+  Array of fee records. Each includes `amount`, `paid_amount`, `status` (`paid`, `pending`, or `overdue`), and `due_date`.
+</ResponseField>
+
+---
+
+## GET /api/student/announcements
+
+Returns published announcements visible to the authenticated student or their department.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/announcements \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object[]" required>
+  Array of published announcements ordered by creation date descending. Each record includes `title`, `content`, `target_audience`, `published_at`, and optional `expires_at`.
+</ResponseField>
+
+---
+
+## GET /api/student/profile
+
+Returns the full profile of the authenticated student, including linked user, department, enrollments, grades, and attendance, plus computed statistics.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/profile \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="student" type="object">
+      Full student record with nested `user`, `department`, `enrollments`, `grades`, and `attendances`.
+    </ResponseField>
+    <ResponseField name="statistics" type="object">
+      Computed values: `total_enrollments`, `completed_courses`, `attendance_percentage`, `average_grade`, `current_gpa`, and `total_credits`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## PUT /api/student/profile
+
+Update the authenticated student's profile. All fields are optional; only include fields you want to change.
+
+```bash
+curl --request PUT \
+  --url https://your-domain.com/api/student/profile \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "phone": "+234 801 234 5678",
+    "address": "12 Campus Drive, Ibadan",
+    "gender": "female"
+  }'
+```
+
+<ParamField body="name" type="string">
+  Full name. Letters and spaces only.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Must be unique across all users.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Contact phone number.
+</ParamField>
+
+<ParamField body="address" type="string">
+  Residential address.
+</ParamField>
+
+<ParamField body="date_of_birth" type="string">
+  Date in `YYYY-MM-DD` format. Must be in the past.
+</ParamField>
+
+<ParamField body="gender" type="string">
+  One of `male`, `female`, or `other`.
+</ParamField>
+
+<ParamField body="semester" type="number">
+  Current semester number (1–8).
+</ParamField>
+
+<ParamField body="blood_group" type="string">
+  One of `A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `O+`, or `O-`.
+</ParamField>
+
+---
+
+## GET /api/student/gpa
+
+Returns the full GPA breakdown including per-course grades, assignment performance, semester performance, recent trend, and grade distribution.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/gpa \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="student" type="object">
+      Basic student info: `id`, `name`, `student_id`, `department`, `semester`.
+    </ResponseField>
+    <ResponseField name="gpa" type="object">
+      `current_gpa`, `total_credits`, `total_grade_points`, and `courses_completed`.
+    </ResponseField>
+    <ResponseField name="assignment_performance" type="object">
+      `total_assignments`, `average_score`, `average_percentage`, `highest_score`, `lowest_score`.
+    </ResponseField>
+    <ResponseField name="semester_performance" type="object[]">
+      Per-semester breakdown with `semester`, `courses`, `total_credits`, and `gpa`.
+    </ResponseField>
+    <ResponseField name="recent_trend" type="object">
+      `recent_course_average`, `recent_assignment_average`, and `trend_direction` (`improving`, `stable`, or `declining`).
+    </ResponseField>
+    <ResponseField name="grade_distribution" type="object">
+      Count of each letter grade (A+, A, A-, B+, B, B-, C+, C, C-, D, F) across all course and assignment records.
+    </ResponseField>
+  </Expandable>
+</ResponseField>

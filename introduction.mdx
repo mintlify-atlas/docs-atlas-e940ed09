@@ -1,0 +1,78 @@
+---
+title: "Academic Nexus Portal: manage your entire institution"
+description: "Academic Nexus Portal is a full-stack academic management system with role-based dashboards for admins, lecturers, and students to manage courses, grades, and fees."
+---
+
+Academic Nexus Portal is a full-stack academic management platform that consolidates every administrative and academic workflow into a single, unified system. Built on a React 18 TypeScript frontend and a Laravel 11 REST API backend, it gives administrators, lecturers, and students their own tailored dashboards — each scoped to exactly the data and actions that role needs. Whether you're running a small college or a multi-department university, the portal handles course catalogues, enrollment queues, timetables, grade pipelines, fee invoicing, hostel accommodation, and degree auditing from one place.
+
+## Three-role system
+
+Every user account belongs to exactly one of three roles. The role is verified at login and enforced through Laravel Sanctum middleware on every API route, so one user can never access another role's data or actions.
+
+| Role | Dashboard route | Primary responsibilities |
+|------|----------------|--------------------------|
+| **Admin** | `/admin` | Institution-wide management, user provisioning, results moderation, fee structures, accommodation allocation |
+| **Teacher / Lecturer** | `/teacher` or `/lecturer` | Class management, attendance marking, continuous assessment entry, final results submission |
+| **Student** | `/student` | Course enrollment, grade viewing, fee payment tracking, accommodation queries, degree progress |
+
+## Core modules
+
+The portal is organized into nine functional modules that cover the full student lifecycle.
+
+**Courses and enrollment** — Admins maintain a course catalogue with prerequisites and capacity limits. Students enroll directly or join a waitlist when a course is full. Admins approve or reject enrollment requests in bulk.
+
+**Attendance** — Teachers mark attendance per session through the API. Students can view their own attendance records; admins have read access across all courses.
+
+**Grades and assessments** — Lecturers enter continuous assessment scores and final exam results. Admins moderate and publish results. The GPA engine calculates cumulative and semester GPAs automatically.
+
+**Fees and invoicing** — Admins define fee structures per program and semester, generate individual or bulk invoices, and record payments. Students view their outstanding balance, payment history, and downloadable receipts.
+
+**Accommodation** — Admins allocate hostel rooms and manage occupancy. Students view their current room, roommates, and accommodation fees.
+
+**Degree progress** — The degree-progress tracker maps a student's completed courses against their program requirements and surfaces the remaining credits needed for graduation.
+
+**Academic calendar** — Admins publish term dates, holidays, and key events. All roles can query the calendar by semester or year.
+
+**Timetable** — Admins schedule class sessions by room and time slot. Students and teachers get filtered views of their own weekly timetable.
+
+**Announcements** — Admins broadcast institution-wide notices. All authenticated users can read published announcements.
+
+## Technology stack
+
+<Columns cols={2}>
+  <Card title="Frontend" icon="react">
+    React 18.3 with TypeScript, built with Vite. UI components from shadcn/ui (Radix UI primitives) styled with Tailwind CSS. Server state managed by TanStack Query v5. Routing via React Router v6.
+  </Card>
+  <Card title="Backend" icon="server">
+    Laravel 11 REST API. MySQL 8 database with Eloquent ORM. Authentication via Laravel Sanctum token-based auth. Role and permission middleware on every protected route.
+  </Card>
+</Columns>
+
+## Key features
+
+<CardGroup cols={3}>
+  <Card title="Role-based access control" icon="shield-check">
+    Every API route is protected by Sanctum authentication plus role and permission middleware. Admins, teachers, and students each receive a distinct permission set at login.
+  </Card>
+  <Card title="Real-time GPA calculation" icon="chart-line">
+    The GPA engine computes semester and cumulative GPAs from assessment scores and automatically recalculates when results are updated or moderated.
+  </Card>
+  <Card title="Bulk operations" icon="layers">
+    Admins can bulk-import students and teachers via CSV, generate invoices for entire cohorts in one request, and approve or reject enrollment batches.
+  </Card>
+  <Card title="Degree progress tracking" icon="graduation-cap">
+    Students see a live audit of completed versus required credits for their enrolled degree program, including a downloadable academic transcript.
+  </Card>
+  <Card title="Waitlist management" icon="list-ordered">
+    When a course reaches capacity, students are placed on a ranked waitlist. Admins can process the waitlist to promote students as seats open.
+  </Card>
+  <Card title="Hostel accommodation" icon="building-2">
+    Admins allocate and vacate hostel rooms, view occupancy per hostel, and download allocation letters. Students access their room details and amenity information.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<Card title="Get started" icon="rocket" href="/quickstart">
+  Install the React frontend and Laravel backend locally in under 10 minutes, seed demo data, and log in with the provided credentials.
+</Card>

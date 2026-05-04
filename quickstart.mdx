@@ -1,81 +1,174 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
-icon: 'rocket'
+title: "Get started with Academic Nexus Portal"
+description: "Set up Academic Nexus Portal locally in minutes — install the React frontend, configure the Laravel API, seed the database, and sign in with demo credentials."
 ---
 
-## Get started in three steps
+This guide walks you through running Academic Nexus Portal on your local machine. By the end you will have the React frontend serving on port 8080, the Laravel API serving on port 8000, and three seeded demo accounts ready to log in with.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you start, make sure the following are installed and available in your `PATH`:
+
+- **Node.js 18+** — used to build and run the React frontend
+- **PHP 8.2+** — required by Laravel 11
+- **Composer** — PHP dependency manager
+- **MySQL 8+** — the primary datastore
+
+<Tip>
+  On macOS, [Homebrew](https://brew.sh) can install all four prerequisites. On Windows, use [XAMPP](https://www.apachefriends.org) or [Laravel Herd](https://herd.laravel.com) for PHP and MySQL.
+</Tip>
+
+## Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the project from GitHub and enter the directory.
+
+    ```bash shell
+    git clone https://github.com/FrankEWallace/academicportal.git
+    cd academicportal
+    ```
+  </Step>
+
+  <Step title="Install and start the frontend">
+    Install Node dependencies and start the Vite development server. The frontend runs on port 8080.
+
+    <CodeGroup>
+
+    ```bash npm
+    npm install
+    npm run dev
+    ```
+
+    ```bash yarn
+    yarn install
+    yarn dev
+    ```
+
+    </CodeGroup>
+
+    The terminal will confirm the server is running at `http://localhost:8080`. Leave this process running and open a new terminal for the backend steps.
+  </Step>
+
+  <Step title="Install backend dependencies">
+    Move into the Laravel backend directory and install PHP packages with Composer.
+
+    ```bash shell
+    cd laravel-backend
+    composer install
+    ```
+  </Step>
+
+  <Step title="Configure the environment">
+    Copy the example environment file and generate a unique application key.
+
+    ```bash shell
+    cp .env.example .env
+    php artisan key:generate
+    ```
+
+    <Note>
+      Open `laravel-backend/.env` in your editor and update the database credentials to match your local MySQL instance. The variables you must set are shown below.
+    </Note>
+
+    ```env .env
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=academic_nexus_portal
+    DB_USERNAME=root
+    DB_PASSWORD=your_password
+    ```
+
+    The `.env.example` file also pre-configures Sanctum's CORS settings so the frontend on port 8080 can reach the API:
+
+    ```env .env
+    SANCTUM_STATEFUL_DOMAINS=localhost:8080
+    SESSION_DOMAIN=localhost
+    FRONTEND_URL=http://localhost:8080
+    ```
+  </Step>
+
+  <Step title="Create the database">
+    Create the `academic_nexus_portal` database in MySQL, then run migrations to build all tables.
+
+    <CodeGroup>
+
+    ```bash MySQL CLI
+    mysql -u root -p -e "CREATE DATABASE academic_nexus_portal CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    ```
+
+    ```sql MySQL workbench
+    CREATE DATABASE academic_nexus_portal
+      CHARACTER SET utf8mb4
+      COLLATE utf8mb4_unicode_ci;
+    ```
+
+    </CodeGroup>
+
+    ```bash shell
+    php artisan migrate
+    ```
+
+    <Warning>
+      Running `php artisan migrate` on an existing database with data will not drop tables. If you need a clean slate during development, use `php artisan migrate:fresh` instead — this destroys all existing data.
+    </Warning>
+  </Step>
+
+  <Step title="Seed demo data">
+    Populate the database with sample users, courses, departments, and academic records.
+
+    ```bash shell
+    php artisan db:seed
+    ```
+
+    The seeder creates three demo accounts across all three roles, a set of courses with enrollments, attendance records, grades, and fee structures.
+  </Step>
+
+  <Step title="Start the API server">
+    Start the Laravel development server, binding to all interfaces on port 8000 so the frontend can reach it.
+
+    ```bash shell
+    php artisan serve --host=0.0.0.0 --port=8000
+    ```
+
+    The API is now available at `http://localhost:8000/api`. You can verify it is running by visiting `http://localhost:8000/api/` in a browser — it returns the API name and version.
+
+    <Note>
+      Both processes (Vite on 8080 and Laravel on 8000) need to be running simultaneously. Use separate terminal windows or a process manager such as `tmux`.
+    </Note>
+  </Step>
+
+  <Step title="Log in with demo credentials">
+    Open `http://localhost:8080` in your browser. The login form asks for a role, email, and password. Use any of the following seeded accounts:
+
+    | Role | Email | Password |
+    |------|-------|----------|
+    | Admin | `admin@academic-nexus.com` | `admin123` |
+    | Teacher | `john.smith@academic-nexus.com` | `teacher123` |
+    | Student | `john.doe@student.academic-nexus.com` | `student123` |
+
+    After a successful login, the frontend redirects you to the role's dashboard: `/admin`, `/teacher`, or `/student`.
+
+    <Tip>
+      Start with the Admin account to explore the full feature set — admins have access to every module including user management, fee structures, results moderation, and accommodation allocation.
+    </Tip>
+  </Step>
+</Steps>
+
+## Common setup issues
 
 <AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
+  <Accordion title="CORS errors in the browser console">
+    Confirm `SANCTUM_STATEFUL_DOMAINS=localhost:8080` is present in `laravel-backend/.env` and that you started the Laravel server with `--host=0.0.0.0`. After any `.env` change, clear the config cache with `php artisan config:clear`.
   </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
+  <Accordion title="php artisan migrate fails with 'Access denied'">
+    Double-check `DB_USERNAME` and `DB_PASSWORD` in `.env`. The MySQL user must have `CREATE`, `ALTER`, and `DROP` privileges on the `academic_nexus_portal` database.
   </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
+  <Accordion title="npm run dev fails with 'Cannot find module'">
+    Make sure you ran `npm install` first. If the error persists, delete `node_modules` and `package-lock.json`, then re-run `npm install`.
+  </Accordion>
+  <Accordion title="Login returns 401 with correct credentials">
+    Ensure the seeder ran successfully (`php artisan db:seed`) and that you selected the matching role in the dropdown. The API validates email, password, *and* role together — providing the wrong role for an account returns a 401 even with the correct password.
   </Accordion>
 </AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

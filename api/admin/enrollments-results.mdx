@@ -1,0 +1,365 @@
+---
+title: "Admin endpoints: enrollments, registrations, and results"
+description: "API reference for admin oversight of enrollment approvals, registration verification, CA approval, exam result moderation, and bulk publish operations."
+---
+
+These endpoints give administrators oversight of the full student journey from initial registration through to published exam results. The enrollment and registration groups handle access control and fee verification; the results group covers the CA approval and exam moderation pipelines that receive submissions from lecturers.
+
+<Note>
+  All endpoints in this group require `Authorization: Bearer {token}` and the authenticated user must have the role `admin`.
+</Note>
+
+---
+
+## Enrollments
+
+### List enrollments
+
+**GET** `/api/admin/enrollments`
+
+Returns a paginated list of all enrollment records. Supports query parameters `course_id`, `student_id`, `status`, and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/enrollments?status=pending&per_page=25' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### List pending-approval enrollments
+
+**GET** `/api/admin/enrollments/pending-approval`
+
+Returns only enrollments awaiting admin approval.
+
+### Get enrollment statistics
+
+**GET** `/api/admin/enrollments/statistics`
+
+Returns counts by status (pending, approved, rejected) and totals per course and department.
+
+### Approve enrollment
+
+**POST** `/api/admin/enrollments/{id}/approve`
+
+Approves a single enrollment. The student gains access to course materials.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/enrollments/301/approve \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Reject enrollment
+
+**POST** `/api/admin/enrollments/{id}/reject`
+
+<ParamField body="reason" type="string" required>
+  Explanation for the rejection, shown to the student. Maximum 500 characters.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/enrollments/301/reject \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "reason": "Prerequisites not satisfied." }'
+```
+
+### Bulk approve enrollments
+
+**POST** `/api/admin/enrollments/bulk-approve`
+
+<ParamField body="ids" type="array" required>
+  Array of enrollment IDs to approve in a single operation.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/enrollments/bulk-approve \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "ids": [301, 302, 303] }'
+```
+
+### Bulk reject enrollments
+
+**POST** `/api/admin/enrollments/bulk-reject`
+
+<ParamField body="ids" type="array" required>
+  Array of enrollment IDs to reject.
+</ParamField>
+
+<ParamField body="reason" type="string" required>
+  Single rejection reason applied to all rejected enrollments.
+</ParamField>
+
+### Get enrollment audit log
+
+**GET** `/api/admin/enrollments/{id}/audit-logs`
+
+Returns a chronological log of all status changes and admin actions on the enrollment.
+
+---
+
+## Registrations
+
+Registration records represent a student's semester registration, which gates access to course enrollment. Admins verify fee payment and can block or override registrations.
+
+### List registrations
+
+**GET** `/api/admin/registrations`
+
+Returns all registration records. Supports filters by `student_id`, `semester_id`, and `status`.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/registrations \
+  --header 'Authorization: Bearer {token}'
+```
+
+### List pending-verification registrations
+
+**GET** `/api/admin/registrations/pending-verification`
+
+Returns registrations awaiting fee verification.
+
+### List blocked registrations
+
+**GET** `/api/admin/registrations/blocked`
+
+Returns registrations that have been blocked from enrollment.
+
+### Get registration statistics
+
+**GET** `/api/admin/registrations/statistics`
+
+Returns counts broken down by status and semester.
+
+### Verify fees
+
+**POST** `/api/admin/registrations/{id}/verify-fees`
+
+Marks the student's fees as verified, allowing them to proceed with course enrollment.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/registrations/55/verify-fees \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Block registration
+
+**POST** `/api/admin/registrations/{id}/block`
+
+Prevents the student from enrolling in courses for this registration period.
+
+### Unblock registration
+
+**POST** `/api/admin/registrations/{id}/unblock`
+
+Removes a block, restoring the student's ability to enroll.
+
+### Override registration
+
+**POST** `/api/admin/registrations/{id}/override`
+
+Administratively overrides registration constraints (e.g. allows enrollment despite outstanding fees).
+
+<Warning>
+  Use overrides with caution. They bypass standard fee verification and eligibility checks.
+</Warning>
+
+### Get registration audit log
+
+**GET** `/api/admin/registrations/{id}/audit-logs`
+
+Returns a chronological log of all admin actions on this registration record.
+
+---
+
+## Results moderation
+
+Lecturers submit CA scores for approval and exam results for moderation. Admins review and act on these submissions before results reach students.
+
+### List pending CA submissions
+
+**GET** `/api/admin/results/ca/pending`
+
+Returns CA assessment records submitted for approval, ordered by submission time (oldest first). Supports optional `course_id` filter and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/results/ca/pending?course_id=12' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Approve CA scores
+
+**POST** `/api/admin/results/ca/{id}/approve`
+
+Approves a submitted CA record. The assessment's `approval_status` is set to `approved`.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/results/ca/45/approve \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data" type="object">
+  The updated assessment record.
+</ResponseField>
+
+### Reject CA scores
+
+**POST** `/api/admin/results/ca/{id}/reject`
+
+Rejects and unlocks a CA record for lecturer correction. The lecturer can then edit and re-submit.
+
+<ParamField body="reason" type="string" required>
+  Reason for rejection, communicated to the lecturer. Maximum 500 characters.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/results/ca/45/reject \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "reason": "Scores appear inconsistent with class average. Please review." }'
+```
+
+### List pending exam submissions
+
+**GET** `/api/admin/results/exams/pending`
+
+Returns exam records submitted for moderation, ordered by submission time. Supports optional `course_id` filter and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/results/exams/pending \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Moderate exam result
+
+**POST** `/api/admin/results/exams/{id}/moderate`
+
+Sets the moderation outcome for an exam record.
+
+<ParamField body="status" type="string" required>
+  `approved` to pass the result for publishing, or `needs_changes` to return it to the lecturer for correction.
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Optional moderation notes. Maximum 1000 characters.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/results/exams/88/moderate \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "status": "approved",
+    "notes": "All scores verified against paper scripts."
+  }'
+```
+
+### Publish exam result
+
+**POST** `/api/admin/results/exams/{id}/publish`
+
+Publishes a single moderated and approved exam result, making it visible to the student. The record must have `moderation_status` of `approved` and must not already be published.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/results/exams/88/publish \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Bulk publish exam results
+
+**POST** `/api/admin/results/exams/bulk-publish`
+
+Publishes multiple approved exam records in a single transaction. Records that are not approved or are already published are skipped and listed in `data.errors`.
+
+<ParamField body="exam_ids" type="array" required>
+  Array of final exam record IDs to publish.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/results/exams/bulk-publish \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "exam_ids": [88, 89, 90, 91] }'
+```
+
+<ResponseField name="data.published" type="integer">
+  Number of records successfully published.
+</ResponseField>
+
+<ResponseField name="data.errors" type="array">
+  Descriptions of records that could not be published.
+</ResponseField>
+
+### Get results statistics
+
+**GET** `/api/admin/results/statistics`
+
+Returns aggregate counts for both CA and exam pipelines. Supports optional `course_id` filter.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/results/statistics \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.ca_stats" type="object">
+  <Expandable title="CA statistics">
+    <ResponseField name="total" type="integer">All CA records.</ResponseField>
+    <ResponseField name="pending_approval" type="integer">Awaiting admin approval.</ResponseField>
+    <ResponseField name="approved" type="integer">Approved records.</ResponseField>
+    <ResponseField name="rejected" type="integer">Rejected records.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data.exam_stats" type="object">
+  <Expandable title="Exam statistics">
+    <ResponseField name="total" type="integer">All exam records.</ResponseField>
+    <ResponseField name="pending_moderation" type="integer">Awaiting moderation.</ResponseField>
+    <ResponseField name="moderated" type="integer">Moderated (approved).</ResponseField>
+    <ResponseField name="published" type="integer">Published to students.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Waitlist
+
+### List waitlists
+
+**GET** `/api/admin/waitlists`
+
+Returns all waitlist entries. Supports filters by `course_id` and `student_id`.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/waitlists \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Process waitlist for a course
+
+**POST** `/api/waitlist/process/{courseId}`
+
+Processes the waitlist for the specified course: moves eligible waitlisted students into available seats in priority order.
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/waitlist/process/12 \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data" type="object">
+  Summary of how many students were moved from the waitlist into enrolled status.
+</ResponseField>

@@ -1,0 +1,175 @@
+---
+title: "POST /api/auth/login — authenticate a user"
+description: "Authenticate with Academic Nexus Portal using email and password. Returns a Sanctum bearer token and user profile including role for dashboard routing."
+---
+
+The login endpoint authenticates a user with their email, password, and role. On success, it issues a Laravel Sanctum plain-text token that must be sent as a `Bearer` token in the `Authorization` header of every subsequent authenticated request. Any existing tokens for the account are revoked before a new one is issued.
+
+## POST /api/auth/login
+
+<Note>This endpoint is public. No `Authorization` header is required.</Note>
+
+### Request body
+
+<ParamField body="email" type="string" required>
+  The user's registered email address.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password. Must be at least 6 characters.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  The role the user is authenticating as. One of `admin`, `student`, or `teacher`. The credentials must match a user with this exact role.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on a successful authentication.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable status message, e.g. `"Login successful"`.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="token" type="string" required>
+      The Sanctum plain-text bearer token. Pass this value as `Authorization: Bearer {token}` in all subsequent requests.
+    </ResponseField>
+    <ResponseField name="token_type" type="string" required>
+      Always `"Bearer"`.
+    </ResponseField>
+    <ResponseField name="user" type="object" required>
+      <Expandable title="properties">
+        <ResponseField name="id" type="number" required>
+          Internal user ID.
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Full display name.
+        </ResponseField>
+        <ResponseField name="email" type="string" required>
+          Email address.
+        </ResponseField>
+        <ResponseField name="role" type="string" required>
+          One of `admin`, `student`, or `teacher`. Use this to route the user to the correct dashboard.
+        </ResponseField>
+        <ResponseField name="student" type="object">
+          Present when `role` is `student`. Contains the linked student record including `student_id`, `department_id`, `semester`, `batch`, and `status`.
+        </ResponseField>
+        <ResponseField name="teacher" type="object">
+          Present when `role` is `teacher`. Contains the linked teacher record including `employee_id`, `department_id`, `designation`, and `joining_date`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/auth/login \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "student@university.edu",
+    "password": "SecurePass1!",
+    "role": "student"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "1|abc123xyz...",
+    "token_type": "Bearer",
+    "user": {
+      "id": 42,
+      "name": "Ada Okonkwo",
+      "email": "student@university.edu",
+      "role": "student",
+      "student": {
+        "id": 7,
+        "student_id": "STU000042",
+        "department_id": 3,
+        "semester": 4,
+        "batch": "2023",
+        "status": "enrolled"
+      }
+    }
+  }
+}
+```
+
+### Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `401`  | Invalid credentials or the account is inactive. |
+| `422`  | Validation error — `email`, `password`, or `role` failed validation. The `errors` field contains per-field messages. |
+
+---
+
+## POST /api/auth/register
+
+Create a new `student` or `teacher` account. Returns a bearer token and the newly created user record.
+
+<Note>This endpoint is public. No `Authorization` header is required.</Note>
+
+### Request body
+
+<ParamField body="name" type="string" required>
+  Full name. Letters and spaces only, 2–255 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Unique email address.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  At least 8 characters. Must contain an uppercase letter, a lowercase letter, a digit, and a special character (`@$!%*?&`).
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Must match `password`.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  One of `student` or `teacher`. Admin accounts cannot be self-registered.
+</ParamField>
+
+---
+
+## POST /api/auth/logout
+
+Revoke the current bearer token.
+
+<Note>Requires a valid `Authorization: Bearer {token}` header.</Note>
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/auth/logout \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+## Using the token
+
+Pass the token returned by `/api/auth/login` (or `/api/auth/register`) as a Bearer token in all subsequent requests:
+
+```
+Authorization: Bearer 1|abc123xyz...
+```
+
+Requests that omit or provide an invalid token receive a `401 Unauthenticated` response.

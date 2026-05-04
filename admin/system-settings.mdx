@@ -1,0 +1,314 @@
+---
+title: "Configure system settings, academic years, and backups"
+description: "How admins manage system-wide settings, configure academic years and semesters, set up grading scales, and create and restore database backups."
+---
+
+System configuration in the Academic Nexus Portal spans four areas: key-value system settings, academic year and semester management, grading scale configuration, and database backup operations. These features are accessed by administrators through the API and any custom settings interface built on top of it. All endpoints in this section are restricted to the `admin` role.
+
+## System settings
+
+Settings are stored as key-value pairs and control institution-wide behaviour such as maintenance windows, application name, and feature toggles.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/settings` | List all settings |
+| `GET` | `/api/admin/settings/{key}` | Get a specific setting by key |
+| `PUT` | `/api/admin/settings/{key}` | Update a setting |
+| `POST` | `/api/admin/settings/bulk-update` | Update multiple settings at once |
+| `POST` | `/api/admin/settings/initialize-defaults` | Reset all settings to defaults |
+| `POST` | `/api/admin/settings/clear-cache` | Clear the settings cache |
+| `POST` | `/api/admin/settings/maintenance-mode` | Toggle maintenance mode |
+
+### Reading and updating a setting
+
+<CodeGroup>
+
+```bash Get a setting
+GET /api/admin/settings/institution_name
+Authorization: Bearer {token}
+```
+
+```bash Update a setting
+PUT /api/admin/settings/institution_name
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+</CodeGroup>
+
+```json Update body
+{
+  "value": "University of Technology"
+}
+```
+
+### Bulk update
+
+Update multiple settings in a single round-trip. Useful when reconfiguring the institution at the start of a new academic year.
+
+```bash
+POST /api/admin/settings/bulk-update
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "settings": {
+    "institution_name": "University of Technology",
+    "academic_year": "2025/2026",
+    "max_courses_per_student": 8,
+    "enrollment_open": true
+  }
+}
+```
+
+### Maintenance mode
+
+Toggling maintenance mode prevents non-admin users from accessing the portal. Use this during upgrades or bulk data operations.
+
+```bash
+POST /api/admin/settings/maintenance-mode
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "enabled": true,
+  "message": "The portal is undergoing scheduled maintenance. Expected back at 14:00 UTC."
+}
+```
+
+<Warning>
+  Enabling maintenance mode immediately blocks all student and lecturer access. Ensure you communicate the maintenance window to users before activating it.
+</Warning>
+
+### Resetting to defaults
+
+If settings have been misconfigured and the application is behaving unexpectedly, reset all settings to their default values:
+
+```bash
+POST /api/admin/settings/initialize-defaults
+Authorization: Bearer {token}
+```
+
+<Note>
+  After updating settings, call `POST /api/admin/settings/clear-cache` to ensure the application picks up the new values immediately without waiting for the cache TTL to expire.
+</Note>
+
+## Academic years
+
+Academic years define the top-level time boundaries for all academic operations. Each academic year contains one or more semesters.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/academic-years` | List all academic years |
+| `POST` | `/api/admin/academic-years` | Create an academic year |
+| `GET` | `/api/admin/academic-years/active` | Get the currently active academic year |
+| `GET` | `/api/admin/academic-years/{academicYear}` | Get a specific academic year |
+| `PUT` | `/api/admin/academic-years/{academicYear}` | Update an academic year |
+| `POST` | `/api/admin/academic-years/{academicYear}/activate` | Activate an academic year |
+| `DELETE` | `/api/admin/academic-years/{academicYear}` | Delete an academic year |
+
+### Creating and activating an academic year
+
+<Steps>
+  <Step title="Create the academic year">
+    ```bash
+    POST /api/admin/academic-years
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "name": "2026/2027",
+      "start_date": "2026-09-01",
+      "end_date": "2027-06-30"
+    }
+    ```
+  </Step>
+  <Step title="Activate it">
+    Only one academic year can be active at a time. Activating a new year does not automatically deactivate the previous one — verify that previous year records are finalised first.
+
+    ```bash
+    POST /api/admin/academic-years/{academicYear}/activate
+    Authorization: Bearer {token}
+    ```
+  </Step>
+  <Step title="Confirm the active year">
+    ```bash
+    GET /api/admin/academic-years/active
+    Authorization: Bearer {token}
+    ```
+  </Step>
+</Steps>
+
+## Semesters
+
+Semesters belong to an academic year and define the period in which courses are offered and results are assessed.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/semesters` | List all semesters |
+| `POST` | `/api/admin/semesters` | Create a semester |
+| `GET` | `/api/admin/semesters/active` | Get the currently active semester |
+| `GET` | `/api/admin/semesters/{semester}` | Get a specific semester |
+| `PUT` | `/api/admin/semesters/{semester}` | Update a semester |
+| `POST` | `/api/admin/semesters/{semester}/activate` | Activate a semester |
+| `DELETE` | `/api/admin/semesters/{semester}` | Delete a semester |
+
+<CodeGroup>
+
+```bash Create a semester
+POST /api/admin/semesters
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json Body
+{
+  "academic_year_id": 5,
+  "name": "First Semester",
+  "semester_code": "2026/2027-1",
+  "start_date": "2026-09-01",
+  "end_date": "2027-01-31"
+}
+```
+
+</CodeGroup>
+
+## Grading scales
+
+Grading scales define the letter-grade boundaries used when converting numeric scores. Defaults can be initialised and then customised per institutional policy.
+
+<AccordionGroup>
+  <Accordion title="List grading scales">
+    ```bash
+    GET /api/admin/grading-scales
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Create a grade boundary">
+    ```bash
+    POST /api/admin/grading-scales
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "grade": "A",
+      "min_score": 70,
+      "max_score": 100,
+      "grade_point": 4.0
+    }
+    ```
+  </Accordion>
+  <Accordion title="Update a grade boundary">
+    ```bash
+    PUT /api/admin/grading-scales/{gradingScale}
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+  </Accordion>
+  <Accordion title="Reset to institutional defaults">
+    ```bash
+    POST /api/admin/grading-scales/initialize-defaults
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Database backups
+
+The backup system lets administrators create, verify, download, and restore full database backups. All backup files are stored server-side and identified by filename.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/backups` | List all backup files |
+| `GET` | `/api/admin/backups/stats` | Backup storage statistics |
+| `POST` | `/api/admin/backups` | Create a new backup |
+| `GET` | `/api/admin/backups/{filename}/download` | Download a backup file |
+| `GET` | `/api/admin/backups/{filename}/verify` | Verify backup integrity |
+| `POST` | `/api/admin/backups/{filename}/restore` | Restore from a backup |
+| `DELETE` | `/api/admin/backups/{filename}` | Delete a backup file |
+
+### Creating a backup
+
+```bash
+POST /api/admin/backups
+Authorization: Bearer {token}
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "filename": "backup_2026_05_04_143000.sql.gz",
+    "size_bytes": 52428800,
+    "created_at": "2026-05-04T14:30:00Z"
+  }
+}
+```
+
+### Verifying and downloading
+
+<Steps>
+  <Step title="Verify integrity">
+    Check that the backup file is not corrupted before attempting a restore or archiving it offsite.
+
+    ```bash
+    GET /api/admin/backups/{filename}/verify
+    Authorization: Bearer {token}
+    ```
+  </Step>
+  <Step title="Download the file">
+    ```bash
+    GET /api/admin/backups/{filename}/download
+    Authorization: Bearer {token}
+    ```
+
+    The response is a binary file stream (`application/gzip`). Store the downloaded file in a secure offsite location.
+  </Step>
+</Steps>
+
+### Restoring from a backup
+
+<Warning>
+  Restoring from a backup is a **destructive, irreversible operation**. All data created after the backup was taken will be permanently lost. Ensure you have a current backup of the live database before proceeding, and that all users have been informed of the maintenance window. Only proceed if you are certain this is the correct backup to restore.
+</Warning>
+
+```bash
+POST /api/admin/backups/{filename}/restore
+Authorization: Bearer {token}
+```
+
+### Backup storage statistics
+
+```bash
+GET /api/admin/backups/stats
+Authorization: Bearer {token}
+```
+
+```json
+{
+  "total_backups": 14,
+  "total_size_bytes": 734003200,
+  "oldest_backup": "2025-11-01T02:00:00Z",
+  "newest_backup": "2026-05-04T14:30:00Z"
+}
+```
+
+<Tip>
+  Schedule regular automated backups using a cron job that calls `POST /api/admin/backups`. Keep at least 30 days of backups and verify each one with `GET /api/admin/backups/{filename}/verify` after creation.
+</Tip>

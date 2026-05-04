@@ -1,0 +1,231 @@
+---
+title: "Student accommodation and hostel information endpoints"
+description: "API reference for retrieving current hostel room assignment, roommate details, accommodation fees, amenities, and downloading the allocation letter."
+---
+
+The accommodation endpoints give students read access to their hostel assignment for the current academic year. Students can view their room details, see who they share the room with, check the fee breakdown for their accommodation, browse available hostel amenities, and download their official allocation letter as a PDF. The waitlist endpoints allow students to join or leave the waitlist for a course.
+
+<Note>All `/api/student/accommodation/*` endpoints require `Authorization: Bearer {token}` and the `student` role. The `/api/waitlist/*` endpoints require a valid bearer token and the `student` or `admin` role.</Note>
+
+---
+
+## GET /api/student/accommodation/current
+
+Returns the room assignment for the authenticated student in the current academic year.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/accommodation/current \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="accommodation" type="object">
+  Present when a room is allocated. Absent or `null` when `has_accommodation` is `false`.
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">Accommodation record ID.</ResponseField>
+    <ResponseField name="hostel_name" type="string">Name of the hostel, e.g. `"Nnamdi Azikiwe Hall"`.</ResponseField>
+    <ResponseField name="block" type="string">Block designation, e.g. `"Block C"`.</ResponseField>
+    <ResponseField name="floor" type="string">Floor number or label.</ResponseField>
+    <ResponseField name="room_number" type="string">Room number, e.g. `"C204"`.</ResponseField>
+    <ResponseField name="room_type" type="string">Room type, e.g. `"4-bed"` or `"single"`.</ResponseField>
+    <ResponseField name="bed_number" type="string">Specific bed assignment within the room.</ResponseField>
+    <ResponseField name="full_room" type="string">Combined room descriptor, e.g. `"C204-Bed 2"`.</ResponseField>
+    <ResponseField name="status" type="string">Allocation status: `active`, `expired`, or `vacated`.</ResponseField>
+    <ResponseField name="allocation_date" type="string">ISO 8601 date when the room was allocated.</ResponseField>
+    <ResponseField name="expiry_date" type="string">ISO 8601 date when the allocation expires.</ResponseField>
+    <ResponseField name="renewal_eligible" type="boolean">`true` if the student is eligible to renew.</ResponseField>
+    <ResponseField name="renewal_deadline" type="string">Deadline date for renewal.</ResponseField>
+    <ResponseField name="renewal_due_soon" type="boolean">`true` if the renewal deadline is approaching.</ResponseField>
+    <ResponseField name="is_active" type="boolean">`true` if the allocation is currently active.</ResponseField>
+    <ResponseField name="allocation_letter_url" type="string">Public URL to the allocation letter PDF, or `null` if not yet generated.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="academic_year" type="string" required>
+  The current academic year, e.g. `"2025/2026"`.
+</ResponseField>
+
+<ResponseField name="has_accommodation" type="boolean">
+  `false` when no accommodation is allocated for the current year. When `false`, no `accommodation` object is returned.
+</ResponseField>
+
+---
+
+## GET /api/student/accommodation/roommates
+
+Returns information about the other occupants sharing the authenticated student's room.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/accommodation/roommates \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="room_info" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="hostel" type="string">Hostel name.</ResponseField>
+    <ResponseField name="room" type="string">Room number.</ResponseField>
+    <ResponseField name="room_type" type="string">Room type.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="roommates" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">Roommate record ID.</ResponseField>
+    <ResponseField name="name" type="string">Full name of the roommate.</ResponseField>
+    <ResponseField name="matric_no" type="string">Matriculation number.</ResponseField>
+    <ResponseField name="department" type="string">Department name.</ResponseField>
+    <ResponseField name="level" type="string">Academic level, e.g. `"300L"`.</ResponseField>
+    <ResponseField name="phone" type="string">Contact phone number.</ResponseField>
+    <ResponseField name="email" type="string">Contact email address.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_roommates" type="number" required>
+  Number of active roommates (excludes the requesting student).
+</ResponseField>
+
+---
+
+## GET /api/student/accommodation/fees
+
+Returns the fee breakdown for the authenticated student's current accommodation, including payment status per fee line item and an overall summary.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/accommodation/fees \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="fees" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">Fee record ID.</ResponseField>
+    <ResponseField name="fee_type" type="string">Type of charge, e.g. `"Hostel Levy"` or `"Caution Deposit"`.</ResponseField>
+    <ResponseField name="amount" type="number">Total amount due.</ResponseField>
+    <ResponseField name="amount_paid" type="number">Amount paid to date.</ResponseField>
+    <ResponseField name="balance" type="number">Remaining balance.</ResponseField>
+    <ResponseField name="status" type="string">Payment status: `paid`, `partial`, or `unpaid`.</ResponseField>
+    <ResponseField name="due_date" type="string">ISO 8601 payment due date.</ResponseField>
+    <ResponseField name="payment_date" type="string">ISO 8601 date payment was received, or `null`.</ResponseField>
+    <ResponseField name="receipt_number" type="string">Payment receipt number, or `null` if unpaid.</ResponseField>
+    <ResponseField name="payment_percentage" type="number">Percentage of this fee that has been paid.</ResponseField>
+    <ResponseField name="is_overdue" type="boolean">`true` if the due date has passed and the balance is greater than zero.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="summary" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="total_amount" type="number">Total accommodation fees charged.</ResponseField>
+    <ResponseField name="total_paid" type="number">Total amount paid across all fee lines.</ResponseField>
+    <ResponseField name="total_balance" type="number">Total outstanding balance.</ResponseField>
+    <ResponseField name="payment_percentage" type="number">Overall payment completion percentage.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /api/student/accommodation/amenities
+
+Returns the list of amenities available in the student's assigned hostel.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/accommodation/amenities \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="hostel_name" type="string" required>
+  Name of the hostel whose amenities are listed.
+</ResponseField>
+
+<ResponseField name="amenities" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">Amenity name, e.g. `"Wi-Fi"`.</ResponseField>
+    <ResponseField name="icon" type="string">Icon identifier for UI display.</ResponseField>
+    <ResponseField name="description" type="string">Short description of the amenity.</ResponseField>
+    <ResponseField name="is_available" type="boolean">`true` if the amenity is currently operational.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_amenities" type="number" required>
+  Count of available amenities returned.
+</ResponseField>
+
+---
+
+## GET /api/student/accommodation/allocation-letter/download
+
+Generates and downloads the official accommodation allocation letter as a PDF. If a letter was previously generated it is served directly; otherwise a new PDF is produced and stored.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/accommodation/allocation-letter/download \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --output allocation_letter.pdf
+```
+
+Returns a `Content-Disposition: attachment` PDF response. The filename follows the pattern `allocation_letter_{matric_no}_{academic_year}.pdf`.
+
+---
+
+## GET /api/waitlist/student/{studentId}
+
+Returns the waitlist entries for a given student across all courses.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/waitlist/student/7 \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="studentId" type="number" required>
+  The student record ID.
+</ParamField>
+
+---
+
+## POST /api/waitlist
+
+Add the authenticated student to the waitlist for a course. Requires the `student` or `admin` role.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/waitlist \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "course_id": 22
+  }'
+```
+
+<ParamField body="course_id" type="number" required>
+  ID of the full course to join the waitlist for.
+</ParamField>
+
+---
+
+## DELETE /api/waitlist/{id}
+
+Remove the authenticated student from a waitlist entry. Requires the `student` or `admin` role.
+
+```bash
+curl --request DELETE \
+  --url https://your-domain.com/api/waitlist/9 \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The waitlist record ID to remove.
+</ParamField>

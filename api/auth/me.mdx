@@ -1,0 +1,152 @@
+---
+title: "GET /api/auth/me — get current user profile"
+description: "Retrieve the authenticated user's profile, role, and associated student or teacher record. Requires a valid Bearer token in the Authorization header."
+---
+
+The `/api/auth/me` endpoint returns the full profile of the currently authenticated user, including their role-specific record (student or teacher), role-based permissions, and metadata about the current access token. Use this endpoint after login to populate user context in your application.
+
+## GET /api/auth/me
+
+<Note>Requires `Authorization: Bearer {token}` header.</Note>
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/auth/me \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="user" type="object" required>
+      <Expandable title="properties">
+        <ResponseField name="id" type="number" required>
+          Internal user ID.
+        </ResponseField>
+        <ResponseField name="name" type="string" required>
+          Full display name.
+        </ResponseField>
+        <ResponseField name="email" type="string" required>
+          Email address.
+        </ResponseField>
+        <ResponseField name="role" type="string" required>
+          One of `admin`, `student`, or `teacher`.
+        </ResponseField>
+        <ResponseField name="student" type="object">
+          Present when `role` is `student`. Includes `student_id`, `department_id`, `semester`, `batch`, `status`, and `current_gpa`.
+        </ResponseField>
+        <ResponseField name="teacher" type="object">
+          Present when `role` is `teacher`. Includes `employee_id`, `department_id`, `designation`, `qualification`, and `joining_date`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="permissions" type="string[]" required>
+      Array of permission strings granted to this role, e.g. `["courses.read", "grades.read", "dashboard.student"]`. Use these to control access in your frontend.
+    </ResponseField>
+    <ResponseField name="token_info" type="object" required>
+      <Expandable title="properties">
+        <ResponseField name="created_at" type="string" required>
+          ISO 8601 timestamp of when the current token was issued.
+        </ResponseField>
+        <ResponseField name="last_used_at" type="string">
+          ISO 8601 timestamp of the token's most recent use. `null` if never used after creation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": 42,
+      "name": "Ada Okonkwo",
+      "email": "student@university.edu",
+      "role": "student",
+      "student": {
+        "id": 7,
+        "student_id": "STU000042",
+        "department_id": 3,
+        "semester": 4,
+        "batch": "2023",
+        "status": "enrolled",
+        "current_gpa": 3.75
+      }
+    },
+    "permissions": [
+      "courses.read",
+      "enrollments.create",
+      "attendance.read",
+      "grades.read",
+      "fees.read",
+      "announcements.read",
+      "dashboard.student"
+    ],
+    "token_info": {
+      "created_at": "2026-05-04T08:00:00.000000Z",
+      "last_used_at": "2026-05-04T09:22:15.000000Z"
+    }
+  }
+}
+```
+
+---
+
+## POST /api/auth/refresh
+
+Revoke the current token and issue a new one without requiring the user to re-enter credentials. Use this to extend a session before the token is manually revoked.
+
+<Note>Requires `Authorization: Bearer {token}` header.</Note>
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/auth/refresh \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="token" type="string" required>
+      The new bearer token. The previous token is immediately revoked.
+    </ResponseField>
+    <ResponseField name="token_type" type="string" required>
+      Always `"Bearer"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## POST /api/auth/logout
+
+Revoke the current bearer token. After logout, the token is deleted and cannot be reused.
+
+<Note>Requires `Authorization: Bearer {token}` header.</Note>
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/auth/logout \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```

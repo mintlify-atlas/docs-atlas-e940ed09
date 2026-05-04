@@ -1,0 +1,312 @@
+---
+title: "Student feedback submission and history endpoints"
+description: "Submit feedback, track submission history, view feedback categories, upload attachments, and mark feedback as viewed via the student feedback API."
+---
+
+The feedback endpoints allow students to raise issues, submit complaints, and track responses from the administration. Each submission generates a unique ticket number for reference. Students can attach supporting files, receive responses from assigned staff, and mark feedback as viewed once they have read a reply. The document-request endpoints provide a related flow for requesting official documents such as letters and certificates.
+
+<Note>All endpoints on this page require `Authorization: Bearer {token}` and the `student` role.</Note>
+
+---
+
+## GET /api/student/feedback/categories
+
+Returns the available feedback categories and priority levels. Call this endpoint before rendering the feedback submission form to populate dropdowns dynamically.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/feedback/categories \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="categories" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="value" type="string">Category key used in submission, e.g. `"academic"`.</ResponseField>
+    <ResponseField name="label" type="string">Human-readable label, e.g. `"Academic"`.</ResponseField>
+    <ResponseField name="description" type="string">Short description of what belongs in this category.</ResponseField>
+    <ResponseField name="icon" type="string">Icon identifier for UI rendering.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+Available categories: `academic`, `accommodation`, `fees`, `portal`, `general`, `complaint`.
+
+<ResponseField name="priorities" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="value" type="string">Priority key, e.g. `"high"`.</ResponseField>
+    <ResponseField name="label" type="string">Display label, e.g. `"High"`.</ResponseField>
+    <ResponseField name="color" type="string">Suggested badge colour: `gray`, `blue`, `orange`, or `red`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+Available priorities: `low`, `medium`, `high`, `urgent`.
+
+---
+
+## POST /api/student/feedback/submit
+
+Submit new feedback. Returns a unique ticket number that the student can use to track the submission.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/feedback/submit \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --form 'category=academic' \
+  --form 'priority=high' \
+  --form 'subject=Missing grade for CSC 301' \
+  --form 'message=My CA score for CSC 301 is not reflected in the portal as of 2026-05-01.' \
+  --form 'attachments[]=@/path/to/screenshot.png'
+```
+
+### Request body (multipart/form-data)
+
+<ParamField body="category" type="string" required>
+  One of `academic`, `accommodation`, `fees`, `portal`, `general`, or `complaint`.
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  Brief subject line. Maximum 255 characters.
+</ParamField>
+
+<ParamField body="message" type="string" required>
+  Full feedback message.
+</ParamField>
+
+<ParamField body="priority" type="string">
+  One of `low`, `medium`, `high`, or `urgent`. Defaults to `medium` if omitted.
+</ParamField>
+
+<ParamField body="attachments[]" type="file">
+  Optional file attachments. Accepted MIME types: `application/pdf`, `image/jpeg`, `image/png`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`. Maximum 10 MB per file. Multiple files may be submitted.
+</ParamField>
+
+### Response
+
+Returns `201 Created`.
+
+<ResponseField name="ticket_number" type="string" required>
+  Auto-generated unique ticket identifier, e.g. `"TKT-2026-00042"`. Save this for tracking.
+</ResponseField>
+
+<ResponseField name="feedback" type="object" required>
+  The created feedback record, including any uploaded `attachments`.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Confirmation message.
+</ResponseField>
+
+---
+
+## GET /api/student/feedback/history
+
+Returns all feedback submitted by the authenticated student, ordered by submission date descending, with status counts.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/feedback/history \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="feedbacks" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">Feedback record ID.</ResponseField>
+    <ResponseField name="ticket_number" type="string">Unique ticket number.</ResponseField>
+    <ResponseField name="category" type="string">Feedback category.</ResponseField>
+    <ResponseField name="priority" type="string">Priority level.</ResponseField>
+    <ResponseField name="subject" type="string">Subject line.</ResponseField>
+    <ResponseField name="status" type="string">Current status: `submitted`, `in_review`, `in_progress`, `resolved`, or `closed`.</ResponseField>
+    <ResponseField name="submission_date" type="string">ISO 8601 submission timestamp.</ResponseField>
+    <ResponseField name="resolved_date" type="string">ISO 8601 resolution timestamp, or `null`.</ResponseField>
+    <ResponseField name="response_count" type="number">Number of staff responses received.</ResponseField>
+    <ResponseField name="is_open" type="boolean">`true` if the ticket is still open.</ResponseField>
+    <ResponseField name="is_resolved" type="boolean">`true` if the ticket has been resolved.</ResponseField>
+    <ResponseField name="has_new_response" type="boolean">`true` if a new response has arrived that the student has not yet viewed.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_count" type="number" required>
+  Total number of feedback records.
+</ResponseField>
+
+<ResponseField name="status_counts" type="object" required>
+  Keyed counts for each status: `submitted`, `in_review`, `in_progress`, `resolved`, and `closed`.
+</ResponseField>
+
+---
+
+## GET /api/student/feedback/{id}
+
+Returns the full details of a single feedback record, including all staff responses and attachments. Automatically marks the feedback as viewed if an unread response exists.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/feedback/5 \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The feedback record ID. Must belong to the authenticated student.
+</ParamField>
+
+### Response
+
+<ResponseField name="feedback" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">Record ID.</ResponseField>
+    <ResponseField name="ticket_number" type="string">Unique ticket number.</ResponseField>
+    <ResponseField name="category" type="string">Feedback category.</ResponseField>
+    <ResponseField name="priority" type="string">Priority level.</ResponseField>
+    <ResponseField name="subject" type="string">Subject line.</ResponseField>
+    <ResponseField name="message" type="string">Full feedback message body.</ResponseField>
+    <ResponseField name="status" type="string">Current status.</ResponseField>
+    <ResponseField name="submission_date" type="string">ISO 8601 submission timestamp.</ResponseField>
+    <ResponseField name="resolved_date" type="string">ISO 8601 resolution timestamp, or `null`.</ResponseField>
+    <ResponseField name="assigned_to" type="object">Staff member assigned to handle the feedback (`id`, `name`), or `null`.</ResponseField>
+    <ResponseField name="attachments" type="object[]">
+      Each attachment: `id`, `filename`, `file_type`, `file_size_human`, `is_image`, `is_pdf`, `url`, and `uploaded_date`.
+    </ResponseField>
+    <ResponseField name="responses" type="object[]">
+      Staff responses in chronological order. Each entry: `id`, `message`, `responder` (`id`, `name`), and `response_date`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## POST /api/student/feedback/{id}/attachment
+
+Upload an additional attachment to an existing feedback record.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/feedback/5/attachment \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --form 'file=@/path/to/evidence.pdf'
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The feedback record ID. Must belong to the authenticated student.
+</ParamField>
+
+### Request body (multipart/form-data)
+
+<ParamField body="file" type="file" required>
+  The file to attach. Accepted MIME types: `application/pdf`, `image/jpeg`, `image/png`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`. Maximum 10 MB.
+</ParamField>
+
+### Response
+
+Returns `201 Created` with the created attachment record: `id`, `filename`, `file_type`, `file_size_human`, and `url`.
+
+---
+
+## PUT /api/student/feedback/{id}/mark-viewed
+
+Mark a feedback record as viewed by the student. Use this after the student has read a staff response to clear the unread indicator.
+
+```bash
+curl --request PUT \
+  --url https://your-domain.com/api/student/feedback/5/mark-viewed \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The feedback record ID. Must belong to the authenticated student.
+</ParamField>
+
+### Response
+
+```json
+{
+  "message": "Feedback marked as viewed"
+}
+```
+
+---
+
+## GET /api/student/document-requests
+
+Returns a list of all document requests made by the authenticated student.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/document-requests \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+---
+
+## POST /api/student/document-requests
+
+Create a new request for an official document such as a letter of introduction, attestation letter, or other certificate.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/document-requests \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "document_type": "attestation_letter",
+    "purpose": "Visa application for summer school in Germany",
+    "urgency": "standard"
+  }'
+```
+
+<ParamField body="document_type" type="string" required>
+  The type of document requested, e.g. `"attestation_letter"`, `"letter_of_introduction"`, or `"enrollment_certificate"`.
+</ParamField>
+
+<ParamField body="purpose" type="string" required>
+  The reason the document is needed. This is included in the generated document.
+</ParamField>
+
+<ParamField body="urgency" type="string">
+  Processing urgency: `standard` or `urgent`. Defaults to `standard`.
+</ParamField>
+
+---
+
+## GET /api/student/document-requests/{id}/download
+
+Download a fulfilled document request as a file.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/document-requests/3/download \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --output document.pdf
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The document request ID. The document must be in a fulfilled status.
+</ParamField>
+
+---
+
+## DELETE /api/student/document-requests/{id}
+
+Cancel a pending document request. Only requests that have not yet been processed can be cancelled.
+
+```bash
+curl --request DELETE \
+  --url https://your-domain.com/api/student/document-requests/3 \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The document request ID to cancel. Must belong to the authenticated student.
+</ParamField>

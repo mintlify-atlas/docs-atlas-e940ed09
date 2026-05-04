@@ -1,0 +1,170 @@
+---
+title: "Deploy the Academic Nexus Portal frontend"
+description: "Build and deploy the React + Vite frontend for Academic Nexus Portal — configure the API base URL, run the production build, and serve the dist folder."
+---
+
+The Academic Nexus Portal frontend is a React 18 + TypeScript application built with Vite. It communicates with the Laravel backend over a RESTful API and uses React Router v6 for client-side navigation. This page covers how to configure environment variables, build for production, and deploy the compiled output to a static web server.
+
+## Prerequisites
+
+<CardGroup cols={3}>
+  <Card title="Node.js 18+" icon="node-js">
+    Required to run the build toolchain and development server.
+  </Card>
+  <Card title="npm" icon="box">
+    Used to install dependencies and run build scripts.
+  </Card>
+  <Card title="Laravel backend" icon="server">
+    The API must be reachable before the frontend can authenticate users. See [Deploy the Laravel API backend](/deployment/backend).
+  </Card>
+</CardGroup>
+
+## Configure environment variables
+
+The frontend reads configuration from a `.env` file at the project root. Copy the example file and set the values for your environment before building.
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and update the following variables:
+
+```bash .env
+# Point to your Laravel API — change for staging or production
+VITE_API_URL=http://localhost:8000/api
+
+# Display name used in the browser tab and UI
+VITE_APP_NAME="Academic Nexus Portal"
+
+VITE_APP_VERSION=1.0.0
+
+# Set to false in production — mock mode bypasses the real API
+VITE_ENABLE_MOCK_API=false
+```
+
+<Warning>
+  `VITE_API_URL` must be set to the public URL of your Laravel backend before running `npm run build`. If this variable is missing or wrong, all API requests will fail at runtime.
+</Warning>
+
+<CodeGroup>
+
+```bash Development
+# Local development — backend runs on port 8000
+VITE_API_URL=http://localhost:8000/api
+```
+
+```bash Production
+# Replace with your production domain
+VITE_API_URL=https://api.yourdomain.com/api
+```
+
+</CodeGroup>
+
+## Build for production
+
+<Steps>
+  <Step title="Install dependencies">
+    Install all npm packages before building.
+
+    ```bash
+    npm install
+    ```
+  </Step>
+  <Step title="Run the production build">
+    Vite compiles and bundles the application into the `dist/` folder.
+
+    ```bash
+    npm run build
+    ```
+
+    The output in `dist/` contains static HTML, CSS, and JavaScript ready to serve from any web server.
+  </Step>
+  <Step title="Preview the build locally">
+    Before deploying, verify the production build works correctly by running Vite's built-in preview server.
+
+    ```bash
+    npm run preview
+    ```
+
+    <Note>
+      `npm run preview` serves the `dist/` folder locally using the Vite preview server. It is not intended for production use — use a proper web server for that.
+    </Note>
+  </Step>
+</Steps>
+
+## Serve the dist/ folder
+
+Deploy the contents of `dist/` to any static web server or hosting platform.
+
+<CardGroup cols={2}>
+  <Card title="Nginx" icon="n">
+    Configure a server block pointing to the `dist/` directory. See the SPA routing note below for the required `try_files` directive.
+  </Card>
+  <Card title="Apache" icon="a">
+    Point the document root to `dist/` and add a `.htaccess` file with `FallbackResource /index.html` to handle SPA routing.
+  </Card>
+  <Card title="Vercel" icon="triangle">
+    Import the repository and set the build command to `npm run build` and the output directory to `dist`. Vercel handles SPA routing automatically.
+  </Card>
+  <Card title="Netlify" icon="globe">
+    Drag and drop the `dist/` folder into Netlify, or connect the repository. Add a `_redirects` file with `/* /index.html 200` for SPA routing.
+  </Card>
+</CardGroup>
+
+### Nginx configuration
+
+The portal uses React Router for client-side navigation, which means the server must redirect all unmatched paths to `index.html` so React Router can handle them.
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+    root /var/www/academicportal/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+<Warning>
+  Without the `try_files $uri $uri/ /index.html` directive (or its equivalent on your server), refreshing any page other than `/` will return a 404 error. This is required for all React Router SPA deployments.
+</Warning>
+
+## Development commands
+
+Use these commands during local development:
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start the Vite development server on port 8080 |
+| `npm run build` | Compile the app into `dist/` for production |
+| `npm run preview` | Serve `dist/` locally with the Vite preview server |
+| `npm run lint` | Run ESLint across the source files |
+
+<Tip>
+  The development server binds to `::` (all interfaces) on port 8080, as configured in `vite.config.ts`. You can reach it at `http://localhost:8080` during local development.
+</Tip>
+
+## Vite configuration reference
+
+The project's `vite.config.ts` sets the following defaults:
+
+```typescript vite.config.ts
+export default defineConfig(({ mode }) => ({
+  base: "/",
+  server: {
+    host: "::",
+    port: 8080,
+  },
+  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+}));
+```
+
+The `@` alias resolves to the `src/` directory, so imports like `import { Button } from "@/components/ui/button"` work without relative path traversal.

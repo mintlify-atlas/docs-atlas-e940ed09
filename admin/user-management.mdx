@@ -1,0 +1,232 @@
+---
+title: "Manage students, teachers, and departments"
+description: "How admins create, update, and remove student and teacher records, manage departments, assign department heads, and bulk import user data."
+---
+
+User management in the Academic Nexus Portal covers the full lifecycle of student records, teacher accounts, generic user accounts, and academic departments. Administrators access these features from the sidebar entries for **Students**, **Teachers**, and **Departments**, or by navigating directly to `/admin/students`, `/admin/teachers`, and `/admin/departments`. For large cohorts, the **Bulk Import** tool at `/admin/bulk-import` lets you ingest records from CSV files in a single operation.
+
+## Students
+
+<Steps>
+  <Step title="List all students">
+    Fetch all student records with optional filters such as department, program, or enrollment year.
+
+    ```bash
+    GET /api/admin/students
+    Authorization: Bearer {token}
+    ```
+  </Step>
+  <Step title="Create a student">
+    Register a new student. The request body must include personal details and program assignment.
+
+    ```bash
+    POST /api/admin/students
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "name": "Alice Johnson",
+      "email": "alice.johnson@institution.edu",
+      "student_id": "STU/2024/001",
+      "phone": "+1234567890",
+      "date_of_birth": "2002-03-15",
+      "department_id": 3,
+      "program_id": 7,
+      "entry_year": 2024
+    }
+    ```
+  </Step>
+  <Step title="View or update a student">
+    Retrieve a single student profile or apply updates to existing fields.
+
+    ```bash
+    GET /api/admin/students/{id}
+    PUT /api/admin/students/{id}
+    Authorization: Bearer {token}
+    ```
+  </Step>
+</Steps>
+
+## Teachers
+
+Teachers are created and listed through the following endpoints. Currently the teacher management interface supports create and list operations; detailed profile updates use the generic user endpoints below.
+
+<CodeGroup>
+
+```bash List teachers
+GET /api/admin/teachers
+Authorization: Bearer {token}
+```
+
+```bash Create teacher
+POST /api/admin/teachers
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+</CodeGroup>
+
+```json Teacher creation body
+{
+  "name": "Dr. Jane Smith",
+  "email": "j.smith@institution.edu",
+  "department_id": 2,
+  "specialization": "Machine Learning"
+}
+```
+
+## User accounts
+
+Generic user account management covers creation, updates, and deletion across all roles. These endpoints are used when you need to manage login credentials independently of the student or teacher profile.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/users` | List all users |
+| `POST` | `/api/admin/users` | Create a user account |
+| `PUT` | `/api/admin/users/{id}` | Update a user account |
+| `DELETE` | `/api/admin/users/{id}` | Delete a user account |
+
+<Warning>
+  Deleting a user account is permanent and will remove the associated login credentials. Student or teacher profile data is not automatically removed. Ensure you handle profile cleanup separately before deleting the account.
+</Warning>
+
+## Departments
+
+Departments group courses and teachers under a faculty structure. You can retrieve statistics per department and assign or remove department heads.
+
+<AccordionGroup>
+  <Accordion title="List departments">
+    ```bash
+    GET /api/admin/departments
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Create a department">
+    ```bash
+    POST /api/admin/departments
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "name": "Computer Science",
+      "code": "CS",
+      "faculty": "Engineering"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Department statistics">
+    Returns per-department counts of students, teachers, and active courses.
+
+    ```bash
+    GET /api/admin/departments/statistics
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Assign a department head">
+    Assign a teacher as the head of a department. Only one head can be active at a time; use `remove-head` first if replacing.
+
+    ```bash
+    POST /api/admin/departments/{id}/assign-head
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "teacher_id": 14
+    }
+    ```
+  </Accordion>
+  <Accordion title="Remove a department head">
+    ```bash
+    POST /api/admin/departments/{id}/remove-head
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Bulk import
+
+The Bulk Import page at `/admin/bulk-import` processes CSV files asynchronously in the background. Imports are queued and polled every five seconds until completion.
+
+<Steps>
+  <Step title="Download a template">
+    Before uploading, download the CSV template for your import type to ensure your file matches the expected column layout.
+
+    ```bash
+    GET /api/admin/bulk-import/templates/{type}
+    Authorization: Bearer {token}
+    ```
+
+    Supported template types and their required columns:
+
+    | Type | Required columns |
+    |---|---|
+    | `students` | `name`, `email`, `student_id`, `phone`, `date_of_birth`, `department_id`, `program_id`, `entry_year` |
+    | `courses` | `course_code`, `course_name`, `credits`, `department_id`, `semester`, `level`, `description` |
+    | `grades` | `student_id`, `course_code`, `exam_score`, `ca_score`, `total_score`, `grade`, `semester_id`, `academic_year` |
+  </Step>
+  <Step title="Upload your CSV">
+    Submit the file as multipart form data. The maximum file size is 10 MB.
+
+    ```bash
+    POST /api/admin/bulk-import/upload
+    Authorization: Bearer {token}
+    Content-Type: multipart/form-data
+    ```
+
+    ```
+    file=<your-file.csv>
+    type=students
+    ```
+  </Step>
+  <Step title="Monitor import progress">
+    The import runs in the background. Poll the imports list or retrieve a specific import by ID to check its status.
+
+    ```bash
+    GET /api/admin/bulk-import/imports
+    GET /api/admin/bulk-import/imports/{id}
+    Authorization: Bearer {token}
+    ```
+
+    Import statuses: `pending` → `processing` → `completed` or `failed` or `rolled_back`.
+  </Step>
+  <Step title="Retry a failed import">
+    If an import fails, you can retry it without re-uploading the file.
+
+    ```bash
+    POST /api/admin/bulk-import/imports/{id}/retry
+    Authorization: Bearer {token}
+    ```
+  </Step>
+</Steps>
+
+<CodeGroup>
+
+```json Import statistics response
+{
+  "total_imports": 42,
+  "completed": 38,
+  "failed": 3,
+  "processing": 1,
+  "by_type": [
+    { "type": "students", "count": 20, "total_records": 4800 },
+    { "type": "courses", "count": 12, "total_records": 240 }
+  ]
+}
+```
+
+```bash Delete an import log
+DELETE /api/admin/bulk-import/imports/{id}
+Authorization: Bearer {token}
+```
+
+</CodeGroup>
+
+<Info>
+  Import logs for imports currently in the `processing` state cannot be deleted. Wait for the import to complete or fail before removing the log.
+</Info>

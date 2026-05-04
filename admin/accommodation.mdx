@@ -1,0 +1,270 @@
+---
+title: "Manage hostel rooms and student accommodation"
+description: "How admins view hostel occupancy, allocate available rooms to students, process vacations, bulk allocate, and manage insurance verification."
+---
+
+The Academic Nexus Portal provides a complete hostel management system accessible to administrators at `/admin/accommodations`. The `AdminAccommodationManagement` component displays a live hostel overview with capacity and occupancy data, and a queue of pending allocation requests. Gender-segregated hostels are enforced automatically — the allocation dialog only offers rooms in hostels that match the requesting student's gender. Insurance verification and feedback management are closely related workflows covered in the second half of this page.
+
+## Accommodation statistics
+
+Statistics are surfaced as summary cards at the top of the page, loaded from:
+
+```bash
+GET /api/admin/accommodations/statistics
+Authorization: Bearer {token}
+```
+
+```json
+{
+  "total_requests": 320,
+  "pending_allocation": 28,
+  "allocated": 289,
+  "total_capacity": 400,
+  "current_occupancy": 289
+}
+```
+
+The occupancy percentage is calculated client-side as `(current_occupancy / total_capacity) × 100`.
+
+## Hostels and rooms
+
+### Listing hostels and rooms
+
+<CodeGroup>
+
+```bash List all hostels
+GET /api/admin/accommodations/hostels
+Authorization: Bearer {token}
+```
+
+```bash List all rooms
+GET /api/admin/accommodations/rooms
+Authorization: Bearer {token}
+```
+
+```bash Available rooms only
+GET /api/admin/accommodations/rooms/available
+Authorization: Bearer {token}
+```
+
+</CodeGroup>
+
+### Hostel occupancy
+
+Retrieve detailed occupancy data for a specific hostel, including a breakdown by floor or room block:
+
+```bash
+GET /api/admin/accommodations/hostels/{id}/occupancy
+Authorization: Bearer {token}
+```
+
+The occupancy indicator in the hostel overview table uses colour coding: green for under 70% capacity, yellow for 70–89%, and red for 90% and above.
+
+## Allocating rooms
+
+Allocation requests appear in a queue at `/admin/accommodations`. Only requests with `status: pending` show an **Allocate Room** button.
+
+<Steps>
+  <Step title="View pending requests">
+    ```bash
+    GET /api/admin/accommodations/pending
+    Authorization: Bearer {token}
+    ```
+  </Step>
+  <Step title="Select a hostel and room">
+    The allocation dialog filters hostels by the student's gender and shows only hostels with available spaces. Selecting a hostel triggers a call to fetch available rooms.
+  </Step>
+  <Step title="Allocate the student">
+    ```bash
+    POST /api/admin/accommodations/{id}/allocate
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "hostel_id": 2,
+      "room_id": 47
+    }
+    ```
+  </Step>
+</Steps>
+
+### Vacating a room
+
+When a student checks out or withdraws, mark their room as vacated to free up the space for other students.
+
+```bash
+POST /api/admin/accommodations/{id}/vacate
+Authorization: Bearer {token}
+```
+
+### Bulk allocation
+
+Process multiple pending allocation requests in a single operation. Useful at the start of a new academic year when a large cohort needs to be housed.
+
+```bash
+POST /api/admin/accommodations/bulk-allocate
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "allocations": [
+    { "request_id": 101, "hostel_id": 1, "room_id": 12 },
+    { "request_id": 102, "hostel_id": 1, "room_id": 13 },
+    { "request_id": 103, "hostel_id": 3, "room_id": 28 }
+  ]
+}
+```
+
+<Tip>
+  Run `GET /api/admin/accommodations/rooms/available` before bulk allocation to build your allocation map with up-to-date room availability.
+</Tip>
+
+## Insurance verification
+
+Students must submit valid insurance documentation as part of the registration process. The admin insurance module at `/admin/insurance` is used to verify, reject, or request resubmission of those documents.
+
+### Insurance endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/admin/insurance` | List all insurance records |
+| `GET` | `/api/admin/insurance/pending-verification` | Records awaiting verification |
+| `POST` | `/api/admin/insurance/{id}/verify` | Verify an insurance document |
+| `POST` | `/api/admin/insurance/{id}/reject` | Reject with reason |
+| `POST` | `/api/admin/insurance/{id}/request-resubmission` | Ask the student to resubmit |
+| `GET` | `/api/admin/insurance/config` | Retrieve insurance configuration |
+| `PUT` | `/api/admin/insurance/config` | Update insurance configuration |
+
+### Verifying insurance
+
+```bash
+POST /api/admin/insurance/{id}/verify
+Authorization: Bearer {token}
+```
+
+### Rejecting with a reason
+
+```bash
+POST /api/admin/insurance/{id}/reject
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "reason": "Document is expired. Coverage must be valid for the current academic year."
+}
+```
+
+### Requesting resubmission
+
+Use this instead of outright rejection when the document is valid but incomplete or unclear.
+
+```bash
+POST /api/admin/insurance/{id}/request-resubmission
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "notes": "Please resubmit a clearer scan that shows the policy number and expiry date."
+}
+```
+
+### Insurance configuration
+
+The institution's insurance policy requirements (accepted providers, minimum coverage amounts, document formats) are stored as configuration and can be updated at any time.
+
+<CodeGroup>
+
+```bash Get config
+GET /api/admin/insurance/config
+Authorization: Bearer {token}
+```
+
+```bash Update config
+PUT /api/admin/insurance/config
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+</CodeGroup>
+
+```json Config body
+{
+  "minimum_coverage": 100000,
+  "accepted_formats": ["pdf", "jpg", "png"],
+  "required_providers": ["HealthFirst", "MediShield", "Any accredited provider"]
+}
+```
+
+## Feedback management
+
+Student feedback submissions are managed from `/admin/feedback`. Admins can view all submissions, assign unhandled items to staff members, adjust priority, and update resolution status.
+
+### Feedback endpoints
+
+<AccordionGroup>
+  <Accordion title="List all feedback">
+    ```bash
+    GET /api/admin/feedback
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Unassigned feedback">
+    Returns submissions that have not yet been assigned to a staff member. Address these first to ensure no feedback falls through the cracks.
+
+    ```bash
+    GET /api/admin/feedback/unassigned
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Assign feedback to a staff member">
+    ```bash
+    POST /api/admin/feedback/{id}/assign
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "staff_id": 8
+    }
+    ```
+  </Accordion>
+  <Accordion title="Change priority">
+    Valid priority values are typically `low`, `medium`, `high`, and `urgent`.
+
+    ```bash
+    POST /api/admin/feedback/{id}/change-priority
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "priority": "high"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Update status">
+    Update the resolution status of a feedback item as it progresses through investigation and resolution.
+
+    ```bash
+    PUT /api/admin/feedback/{id}/update-status
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "status": "in_progress"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>

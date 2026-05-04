@@ -1,0 +1,354 @@
+---
+title: "Authenticate with Academic Nexus Portal"
+description: "Learn how to log in to Academic Nexus Portal, obtain your session token with Laravel Sanctum, use it in API requests, and handle common authentication errors."
+---
+
+Academic Nexus Portal uses Laravel Sanctum for token-based authentication. When you log in, the API issues a plain-text bearer token that you attach to every subsequent request. Tokens are stored in the `personal_access_tokens` table and scoped to a single user and role — there are no shared or service tokens. This page explains the full auth flow: obtaining a token, using it, refreshing it, resetting a password, and understanding what each error response means.
+
+## Log in and obtain a token
+
+Send a `POST` request to `/api/auth/login` with your email, password, and role. The role field is required and must match the role stored on the user record — sending the wrong role for an account returns a 401 even if the credentials are otherwise correct.
+
+### Request
+
+<ParamField body="email" type="string" required>
+  The user's email address. Maximum 255 characters.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password. Minimum 6 characters, maximum 255 characters.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  The user's role. Must be one of `admin`, `student`, or `teacher`.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url http://localhost:8000/api/auth/login \
+  --header 'Content-Type: application/json' \
+  --header 'Accept: application/json' \
+  --data '{
+    "email": "admin@academic-nexus.com",
+    "password": "admin123",
+    "role": "admin"
+  }'
+```
+
+### Response
+
+A successful login revokes any existing tokens for that user and issues a new one. The response includes the full user object — with role-specific data loaded for `student` and `teacher` accounts — and the bearer token.
+
+<ResponseField name="success" type="boolean" required>
+  `true` on a successful login.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable status message.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="user" type="object">
+      The authenticated user record. For `student` and `teacher` roles, the response also includes the nested profile object (e.g., `user.student` or `user.teacher`).
+    </ResponseField>
+    <ResponseField name="token" type="string">
+      The plain-text Sanctum bearer token. Store this securely — it is shown only once.
+    </ResponseField>
+    <ResponseField name="token_type" type="string">
+      Always `"Bearer"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json 200 OK
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Admin User",
+      "email": "admin@academic-nexus.com",
+      "role": "admin",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00.000000Z",
+      "updated_at": "2024-01-01T00:00:00.000000Z"
+    },
+    "token": "1|abcdefghijklmnopqrstuvwxyz1234567890",
+    "token_type": "Bearer"
+  }
+}
+```
+
+## Use the token in API requests
+
+Include the token in the `Authorization` header of every request to a protected endpoint.
+
+```bash cURL
+curl --request GET \
+  --url http://localhost:8000/api/auth/me \
+  --header 'Authorization: Bearer 1|abcdefghijklmnopqrstuvwxyz1234567890' \
+  --header 'Accept: application/json'
+```
+
+<Warning>
+  Never expose your bearer token in client-side JavaScript, browser history, or logs. Treat it with the same care as a password.
+</Warning>
+
+## Get current user information
+
+`GET /api/auth/me` returns the authenticated user's profile, their permission set, and metadata about the current access token.
+
+```bash cURL
+curl --request GET \
+  --url http://localhost:8000/api/auth/me \
+  --header 'Authorization: Bearer 1|abcdefghijklmnopqrstuvwxyz1234567890' \
+  --header 'Accept: application/json'
+```
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the token is valid.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="user" type="object">
+      The authenticated user record, including the nested profile for `student` and `teacher` roles.
+    </ResponseField>
+    <ResponseField name="permissions" type="string[]">
+      The list of permission strings granted to this role. For example, admins receive `users.create`, `grades.delete`, and `dashboard.admin` among others. Students receive a narrower set such as `courses.read`, `grades.read`, and `fees.read`.
+    </ResponseField>
+    <ResponseField name="token_info" type="object">
+      <Expandable title="properties">
+        <ResponseField name="created_at" type="string">
+          ISO 8601 timestamp of when the token was issued.
+        </ResponseField>
+        <ResponseField name="last_used_at" type="string">
+          ISO 8601 timestamp of the most recent authenticated request.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json 200 OK
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Admin User",
+      "email": "admin@academic-nexus.com",
+      "role": "admin",
+      "is_active": true
+    },
+    "permissions": [
+      "users.create", "users.read", "users.update", "users.delete",
+      "courses.create", "courses.read", "courses.update", "courses.delete",
+      "grades.create", "grades.read", "grades.update", "grades.delete",
+      "fees.create", "fees.read", "fees.update", "fees.delete",
+      "dashboard.admin"
+    ],
+    "token_info": {
+      "created_at": "2024-06-01T10:00:00.000000Z",
+      "last_used_at": "2024-06-01T10:05:23.000000Z"
+    }
+  }
+}
+```
+
+## Role-based routing after login
+
+The React frontend reads `user.role` from the login response and redirects to the appropriate dashboard route. If the user was attempting to access a specific page before their session expired, they are sent to that page instead.
+
+| Role | Default redirect |
+|------|-----------------|
+| `admin` | `/admin` |
+| `teacher` | `/teacher` |
+| `student` | `/student` |
+
+Teacher accounts can also access the `/lecturer` route, which provides the continuous assessment and results management views.
+
+## Log out
+
+`POST /api/auth/logout` deletes the current access token. The token is immediately invalidated — any subsequent requests using it receive a 401.
+
+```bash cURL
+curl --request POST \
+  --url http://localhost:8000/api/auth/logout \
+  --header 'Authorization: Bearer 1|abcdefghijklmnopqrstuvwxyz1234567890' \
+  --header 'Accept: application/json'
+```
+
+```json 200 OK
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+## Refresh a token
+
+`POST /api/auth/refresh` deletes the current token and issues a new one without requiring the user's credentials again. Use this to rotate tokens periodically.
+
+```bash cURL
+curl --request POST \
+  --url http://localhost:8000/api/auth/refresh \
+  --header 'Authorization: Bearer 1|abcdefghijklmnopqrstuvwxyz1234567890' \
+  --header 'Accept: application/json'
+```
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the token was refreshed.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="token" type="string">
+      The new plain-text bearer token.
+    </ResponseField>
+    <ResponseField name="token_type" type="string">
+      Always `"Bearer"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json 200 OK
+{
+  "success": true,
+  "data": {
+    "token": "2|newtoken1234567890abcdefghijklmnopqr",
+    "token_type": "Bearer"
+  }
+}
+```
+
+<Note>
+  Sanctum tokens do not expire by default. If you need automatic expiry, set `SANCTUM_EXPIRATION` in `.env` to a number of minutes (e.g., `SANCTUM_EXPIRATION=60` for 1-hour tokens). Use the refresh endpoint before expiry to maintain a session.
+</Note>
+
+## Password reset flow
+
+Password reset uses a two-step process. First, request a reset token; second, submit the new password with that token.
+
+### Step 1 — Request a reset link
+
+`POST /api/auth/password-reset-request` accepts an email address and generates a reset token. The response is identical whether or not the email exists, to prevent email enumeration.
+
+<ParamField body="email" type="string" required>
+  The email address associated with the account.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url http://localhost:8000/api/auth/password-reset-request \
+  --header 'Content-Type: application/json' \
+  --header 'Accept: application/json' \
+  --data '{"email": "john.doe@student.academic-nexus.com"}'
+```
+
+```json 200 OK
+{
+  "success": true,
+  "message": "If an account with that email exists, a password reset link has been sent",
+  "data": {
+    "expires_in": "1 hour"
+  }
+}
+```
+
+### Step 2 — Submit the new password
+
+`POST /api/auth/password-reset` validates the token and updates the password. On success, all existing tokens for the account are revoked and the user must log in again.
+
+<ParamField body="email" type="string" required>
+  The account's email address.
+</ParamField>
+
+<ParamField body="token" type="string" required>
+  The 64-character reset token from the reset link.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The new password. Minimum 8 characters. Must contain at least one uppercase letter, one lowercase letter, one number, and one special character (`@$!%*?&`). Must differ from the current password.
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Must match the `password` field exactly.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url http://localhost:8000/api/auth/password-reset \
+  --header 'Content-Type: application/json' \
+  --header 'Accept: application/json' \
+  --data '{
+    "email": "john.doe@student.academic-nexus.com",
+    "token": "a1b2c3d4e5f6...64charactertoken",
+    "password": "NewSecure@2024",
+    "password_confirmation": "NewSecure@2024"
+  }'
+```
+
+```json 200 OK
+{
+  "success": true,
+  "message": "Password has been reset successfully. Please log in with your new password."
+}
+```
+
+## Common errors
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized">
+    Returned by `/api/auth/login` when the email, password, or role do not match any active user record. Also returned by any protected endpoint when no token is provided, the token has been revoked (via logout or refresh), or the token belongs to an inactive user.
+
+    ```json 401 Unauthorized
+    {
+      "success": false,
+      "message": "The provided credentials do not match our records"
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="403 Forbidden">
+    Returned when a valid token is present but the user's role or permissions do not allow the requested action. For example, a student token attempting to access `/api/admin/users` receives a 403.
+
+    ```json 403 Forbidden
+    {
+      "message": "Forbidden"
+    }
+    ```
+
+    Check the `permissions` array returned by `GET /api/auth/me` to confirm what the authenticated user is allowed to do.
+  </Accordion>
+
+  <Accordion title="422 Unprocessable Entity">
+    Returned when required fields are missing or fail validation. The `errors` object maps each failing field to an array of messages.
+
+    ```json 422 Unprocessable Entity
+    {
+      "success": false,
+      "message": "Please check your input and try again",
+      "errors": {
+        "role": ["The selected role is invalid."],
+        "password": ["The password field must be at least 6 characters."]
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="400 Bad Request — invalid reset token">
+    Returned by `/api/auth/password-reset` when the token does not match the stored record or has expired. Reset tokens are valid for 1 hour.
+
+    ```json 400 Bad Request
+    {
+      "success": false,
+      "message": "Invalid or expired reset token"
+    }
+    ```
+
+    Request a new reset token and complete the process within 1 hour.
+  </Accordion>
+</AccordionGroup>

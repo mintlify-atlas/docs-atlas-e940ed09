@@ -1,0 +1,255 @@
+---
+title: "Submit final exam results for moderation"
+description: "How lecturers enter final exam results, perform bulk updates, lock results, and submit them to the admin moderation queue for publishing."
+---
+
+The Results Management module handles final exam scores separately from continuous assessment. Where CA scores go through an **approval** workflow, exam results go through a **moderation** workflow — a distinction that reflects the different levels of oversight applied to each. Exam scores are entered against a maximum of 70 marks, combined with the pre-existing CA score (out of 30) by the system to compute a final total out of 100, and then submitted to an admin moderator before being published to students. The module is accessed via the **Results Management** tab on the lecturer dashboard at `/lecturer`.
+
+## CA vs. final exam results: key differences
+
+| Attribute | Continuous Assessment | Final Exam Results |
+|-----------|----------------------|-------------------|
+| Max score per entry | Configured per assessment (e.g. 30) | 70 marks |
+| Admin action | Approve or reject | Moderate, then publish |
+| Endpoint prefix | `/api/lecturer/ca/` | `/api/lecturer/results/` |
+| Final student visibility | After admin approval | After admin publishes |
+| Grade calculated by | Weighted per assessment | Total CA + exam score |
+
+Grades are derived from the combined total using the scale: A (70 and above), B (60–69), C (50–59), D (45–49), E (40–44), F (below 40).
+
+## Workflow overview
+
+<Steps>
+  <Step title="View your assigned courses">
+    Call `GET /api/lecturer/results/courses` to retrieve courses assigned to your account. Each course includes the submission and lock status, as well as the current moderation status (`pending`, `approved`, or `rejected`).
+
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "id": 1,
+          "course_code": "CS301",
+          "title": "Data Structures",
+          "semester_code": "2025-1",
+          "academic_year": "2025/2026",
+          "lecturer_id": 12,
+          "department": { "id": 1, "name": "Computer Science" }
+        }
+      ]
+    }
+    ```
+
+    In the UI, each course row shows how many results have been submitted versus the total student count, whether the results are locked, and the moderation status badge.
+  </Step>
+
+  <Step title="View enrolled students">
+    Call `GET /api/lecturer/results/courses/{courseId}/students` to list students active in the course. This is the same roster used by the CA module.
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "course": { "id": 1, "course_code": "CS301" },
+        "students": [
+          {
+            "id": 101,
+            "student_number": "CS/2023/001",
+            "name": "John Doe",
+            "email": "john.doe@university.edu",
+            "enrollment_id": 55
+          }
+        ],
+        "total_students": 45
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Review existing results">
+    Call `GET /api/lecturer/results/courses/{courseId}/results` to see which students already have exam scores recorded. Results are returned with status, lock state, moderation state, and publish state.
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "course": { "id": 1, "course_code": "CS301" },
+        "results": [
+          {
+            "id": 77,
+            "student_id": 101,
+            "student_number": "CS/2023/001",
+            "name": "John Doe",
+            "score": 58,
+            "max_score": 70,
+            "percentage": 82.86,
+            "exam_date": "2025-11-14",
+            "status": "submitted",
+            "locked_at": null,
+            "moderation_status": "pending",
+            "published_at": null,
+            "remarks": null
+          }
+        ],
+        "is_locked": false,
+        "is_moderated": false
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Enter or update a single result">
+    To record or correct one student's exam score, send a `PUT` request to `/api/lecturer/results/exams/{examId}`. The `score` field is required and must not exceed the exam record's `max_score` (70). An optional `remarks` field accepts up to 500 characters.
+
+    ```json
+    {
+      "score": 62,
+      "remarks": "Answered all questions; minor errors in section C"
+    }
+    ```
+
+    A successful response returns the updated exam record.
+
+    ```json
+    {
+      "success": true,
+      "message": "Result updated successfully",
+      "data": {
+        "id": 77,
+        "score": 62,
+        "max_score": 70,
+        "status": "submitted",
+        "moderation_status": "pending",
+        "locked_at": null
+      }
+    }
+    ```
+
+    <Note>
+      The API rejects scores above `max_score` with a `422` response and rejects updates to locked exam records with a `403` response. Cross-course updates by another lecturer are also rejected with `403 Unauthorized`.
+    </Note>
+  </Step>
+
+  <Step title="Bulk update results for multiple students">
+    Use `POST /api/lecturer/results/bulk-update` to submit scores for several students at once. Each item in the `results` array requires `exam_id` and `score`. All updates are wrapped in a database transaction.
+
+    ```json
+    {
+      "results": [
+        { "exam_id": 77, "score": 62, "remarks": "Solid" },
+        { "exam_id": 78, "score": 49 },
+        { "exam_id": 79, "score": 70, "remarks": "Perfect score" }
+      ]
+    }
+    ```
+
+    The response reports how many records were updated and lists per-record errors for items that were skipped.
+
+    ```json
+    {
+      "success": true,
+      "message": "Updated 3 result(s)",
+      "data": {
+        "updated": 3,
+        "errors": []
+      }
+    }
+    ```
+
+    <Tip>
+      Skipped entries are listed in `errors` but do not prevent valid entries from saving. Always check `errors` after a bulk update to confirm all expected records were saved.
+    </Tip>
+  </Step>
+
+  <Step title="Lock results to prevent further edits">
+    When all exam scores are final, call `POST /api/lecturer/results/courses/{courseId}/lock`. This sets `locked_at` on every unlocked exam record for the course.
+
+    ```json
+    {
+      "success": true,
+      "message": "Locked 45 exam result(s)",
+      "data": {
+        "locked_count": 45,
+        "total_count": 45
+      }
+    }
+    ```
+
+    <Warning>
+      **Locking results is permanent.** Once an exam record has a `locked_at` timestamp, it cannot be edited by the lecturer. If a score was entered incorrectly, you must contact an administrator to unlock the record before it can be corrected. Verify all scores before locking.
+    </Warning>
+  </Step>
+
+  <Step title="Submit results for admin moderation">
+    After locking, send the results to the moderation queue with `POST /api/lecturer/results/courses/{courseId}/submit-moderation`. This sets `submitted_for_moderation_at` on each exam record and places the course in the admin's moderation list.
+
+    ```json
+    {
+      "success": true,
+      "message": "Submitted 45 exam result(s) for moderation",
+      "data": {
+        "submitted_count": 45,
+        "total_count": 45
+      }
+    }
+    ```
+
+    The moderation status on the course row changes to **Pending** in the UI. From here, the results move to the admin side of the portal.
+  </Step>
+</Steps>
+
+## API endpoint reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/lecturer/results/courses` | List assigned courses with result and moderation status |
+| `GET` | `/api/lecturer/results/courses/{courseId}/students` | List active students in a course |
+| `GET` | `/api/lecturer/results/courses/{courseId}/results` | View existing exam results |
+| `PUT` | `/api/lecturer/results/exams/{examId}` | Update a single exam score |
+| `POST` | `/api/lecturer/results/bulk-update` | Update multiple exam scores in one request |
+| `POST` | `/api/lecturer/results/courses/{courseId}/lock` | Lock all results in a course |
+| `POST` | `/api/lecturer/results/courses/{courseId}/submit-moderation` | Submit locked results to admin moderation |
+| `GET` | `/api/lecturer/results/statistics` | View aggregate results statistics |
+
+## Statistics response
+
+**`GET /api/lecturer/results/statistics`** returns a count of exams across all your courses by their current state.
+
+```json
+{
+  "success": true,
+  "data": {
+    "total_courses": 4,
+    "total_exams": 290,
+    "locked_exams": 140,
+    "pending_moderation": 55,
+    "moderated_exams": 80,
+    "published_exams": 75
+  }
+}
+```
+
+The four summary cards at the top of the Results Management tab display `total_courses`, `completed_courses` (courses where all results are submitted), `pending_moderation`, and `approved_courses` from this payload.
+
+## What happens after submission
+
+Once you submit results for moderation, the workflow continues on the admin side:
+
+1. The admin sees the submission in the pending exam list (`GET /api/admin/results/exams/pending`).
+2. The admin reviews the scores and moderates the submission (`POST /api/admin/results/exams/{id}/moderate`).
+3. After moderation, the admin publishes the results (`POST /api/admin/results/exams/{id}/publish` or bulk via `POST /api/admin/results/exams/bulk-publish`).
+4. Once published, the `published_at` timestamp is set on each exam record, and students can view their final grades in the student portal.
+
+<Info>
+  Exam results are **not visible to students** at any point before the admin publishes them — not when you submit, and not when the admin moderates. Publication is the final step that makes results student-facing.
+</Info>
+
+## Moderation status values
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Submitted but not yet reviewed by an admin |
+| `approved` | Moderated and approved; awaiting publication |
+| `rejected` | Rejected by the admin; requires correction and resubmission |
+
+If a submission is rejected, contact your administrator to unlock the affected records, correct the scores, re-lock, and resubmit for moderation.

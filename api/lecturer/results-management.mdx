@@ -1,0 +1,290 @@
+---
+title: "Lecturer results endpoints: exam entry and moderation"
+description: "API reference for final exam results — list courses, view and update individual or bulk results, lock, and submit to the admin moderation queue."
+---
+
+The results endpoints let lecturers enter and manage final exam scores for their assigned courses. Unlike CA scores — which go to an admin **approval** queue — exam results go to an admin **moderation** queue before they can be published to students. This two-step process (moderation then publish) ensures exam results receive additional oversight before becoming visible.
+
+<Note>
+  All endpoints in this group require `Authorization: Bearer {token}` in the request header. The authenticated user must have the role `lecturer`. Requests from users with other roles are rejected with `403 Forbidden`.
+</Note>
+
+---
+
+## CA vs. exam results: workflow comparison
+
+| Step | CA scores | Exam results |
+|------|-----------|--------------|
+| Entry | Lecturer enters scores | Lecturer enters scores |
+| Lock | Lecturer locks (irreversible) | Lecturer locks (irreversible) |
+| Submission | Submit for **approval** | Submit for **moderation** |
+| Admin action | Admin approves or rejects | Admin moderates (`approved` or `needs_changes`), then publishes |
+| Student visibility | After approval | After admin explicitly publishes |
+
+---
+
+## List assigned courses
+
+Returns all courses where the authenticated lecturer is the assigned instructor, ordered by semester (descending) then course code.
+
+**GET** `/api/lecturer/results/courses`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/results/courses \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="success" type="boolean" required>
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of course objects.
+  <Expandable title="course object">
+    <ResponseField name="id" type="integer">Course ID.</ResponseField>
+    <ResponseField name="course_code" type="string">Short course identifier (e.g. `CS301`).</ResponseField>
+    <ResponseField name="name" type="string">Full course name.</ResponseField>
+    <ResponseField name="semester_code" type="string">Semester the course runs in.</ResponseField>
+    <ResponseField name="department" type="object">Nested department object.</ResponseField>
+    <ResponseField name="semester" type="object">Nested semester object.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## List students in a course
+
+Returns all actively enrolled students for the given course. The lecturer must own the course or the request returns `404`.
+
+**GET** `/api/lecturer/results/courses/{courseId}/students`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/results/courses/12/students \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.course" type="object">
+  Course summary.
+</ResponseField>
+
+<ResponseField name="data.students" type="array">
+  <Expandable title="student object">
+    <ResponseField name="id" type="integer">Student ID.</ResponseField>
+    <ResponseField name="student_number" type="string">Institutional student number.</ResponseField>
+    <ResponseField name="name" type="string">Full name.</ResponseField>
+    <ResponseField name="email" type="string">Email address.</ResponseField>
+    <ResponseField name="enrollment_id" type="integer">ID of the enrollment record.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data.total_students" type="integer">
+  Total number of active enrollments.
+</ResponseField>
+
+---
+
+## Get exam results for a course
+
+Returns all final exam records for a course, including score, percentage, lock status, moderation status, and published timestamp.
+
+**GET** `/api/lecturer/results/courses/{courseId}/results`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/results/courses/12/results \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.course" type="object">
+  Course summary.
+</ResponseField>
+
+<ResponseField name="data.results" type="array">
+  <Expandable title="exam result object">
+    <ResponseField name="id" type="integer">Exam record ID.</ResponseField>
+    <ResponseField name="student_id" type="integer">Student ID.</ResponseField>
+    <ResponseField name="student_number" type="string">Institutional student number.</ResponseField>
+    <ResponseField name="name" type="string">Student full name.</ResponseField>
+    <ResponseField name="score" type="number">Marks awarded.</ResponseField>
+    <ResponseField name="max_score" type="number">Maximum marks available.</ResponseField>
+    <ResponseField name="percentage" type="number">Score as a percentage of max_score.</ResponseField>
+    <ResponseField name="exam_date" type="string">Date the exam was held.</ResponseField>
+    <ResponseField name="status" type="string">General record status.</ResponseField>
+    <ResponseField name="locked_at" type="string">ISO 8601 timestamp when locked, or `null`.</ResponseField>
+    <ResponseField name="moderation_status" type="string">`pending`, `approved`, or `needs_changes`.</ResponseField>
+    <ResponseField name="published_at" type="string">ISO 8601 timestamp when published to students, or `null`.</ResponseField>
+    <ResponseField name="remarks" type="string">Lecturer remarks.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data.is_locked" type="boolean">
+  `true` if any exam record in this course has been locked.
+</ResponseField>
+
+<ResponseField name="data.is_moderated" type="boolean">
+  `true` if any exam record has `moderation_status` of `approved`.
+</ResponseField>
+
+---
+
+## Update a single exam result
+
+Updates the `score` and optional `remarks` on one exam record. The record must not be locked.
+
+**PUT** `/api/lecturer/results/exams/{examId}`
+
+<ParamField body="score" type="number" required>
+  Numeric score to record. Must be between `0` and the exam's `max_score`.
+</ParamField>
+
+<ParamField body="remarks" type="string">
+  Optional notes. Maximum 500 characters.
+</ParamField>
+
+```bash cURL
+curl --request PUT \
+  --url https://your-domain.com/api/lecturer/results/exams/88 \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "score": 72.5,
+    "remarks": "Strong analytical section, weaker on practical"
+  }'
+```
+
+<ResponseField name="data" type="object">
+  The updated exam record.
+</ResponseField>
+
+---
+
+## Bulk update results
+
+Updates multiple exam records in a single transaction. Records that are locked, unauthorised, or exceed `max_score` are skipped and listed in `data.errors`.
+
+**POST** `/api/lecturer/results/bulk-update`
+
+<ParamField body="results" type="array" required>
+  Array of result update objects.
+  <Expandable title="result object">
+    <ParamField body="results[].exam_id" type="integer" required>
+      ID of the final exam record to update.
+    </ParamField>
+    <ParamField body="results[].score" type="number" required>
+      Numeric score. Must be `>= 0` and `<= max_score`.
+    </ParamField>
+    <ParamField body="results[].remarks" type="string">
+      Optional notes. Maximum 500 characters.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/lecturer/results/bulk-update \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "results": [
+      { "exam_id": 88, "score": 72.5, "remarks": "Good" },
+      { "exam_id": 89, "score": 55.0 },
+      { "exam_id": 90, "score": 88.0, "remarks": "Excellent" }
+    ]
+  }'
+```
+
+<ResponseField name="data.updated" type="integer">
+  Number of records successfully updated.
+</ResponseField>
+
+<ResponseField name="data.errors" type="array">
+  Descriptions of records that could not be updated.
+</ResponseField>
+
+---
+
+## Lock exam results
+
+<Warning>
+  Locking is irreversible from the lecturer's side. Once results are locked you cannot modify them. Results can only be unlocked if an admin sets moderation status to `needs_changes`. Lock only when all scores are final and verified.
+</Warning>
+
+Locks every unlocked exam record in the course. Locked records cannot be edited until an admin sends them back for correction via the moderation workflow.
+
+**POST** `/api/lecturer/results/courses/{courseId}/lock`
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/lecturer/results/courses/12/lock \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.locked_count" type="integer">
+  Number of exam records locked by this request.
+</ResponseField>
+
+<ResponseField name="data.total_count" type="integer">
+  Total exam records in the course.
+</ResponseField>
+
+---
+
+## Submit results for moderation
+
+Submits all exam records in the course to the admin moderation queue. Already-submitted records are skipped. Results must be locked before submission is meaningful — unlocked records are submitted but will not have a definitive score.
+
+**POST** `/api/lecturer/results/courses/{courseId}/submit-moderation`
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/lecturer/results/courses/12/submit-moderation \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.submitted_count" type="integer">
+  Number of exam records newly submitted for moderation.
+</ResponseField>
+
+<ResponseField name="data.total_count" type="integer">
+  Total exam records in the course.
+</ResponseField>
+
+---
+
+## Get statistics
+
+Returns aggregate counts across all courses assigned to the authenticated lecturer.
+
+**GET** `/api/lecturer/results/statistics`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/lecturer/results/statistics \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.total_courses" type="integer">
+  Courses assigned to the lecturer.
+</ResponseField>
+
+<ResponseField name="data.total_exams" type="integer">
+  Total exam records across all courses.
+</ResponseField>
+
+<ResponseField name="data.locked_exams" type="integer">
+  Records with a non-null `locked_at` timestamp.
+</ResponseField>
+
+<ResponseField name="data.pending_moderation" type="integer">
+  Records submitted but awaiting admin review.
+</ResponseField>
+
+<ResponseField name="data.moderated_exams" type="integer">
+  Records with `moderation_status` of `approved`.
+</ResponseField>
+
+<ResponseField name="data.published_exams" type="integer">
+  Records with a non-null `published_at` timestamp (visible to students).
+</ResponseField>

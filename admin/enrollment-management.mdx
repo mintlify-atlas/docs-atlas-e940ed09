@@ -1,0 +1,278 @@
+---
+title: "Approve enrollments and moderate exam results"
+description: "How admins review pending enrollment requests, approve or reject in bulk, moderate lecturer-submitted CA scores, and publish final exam results."
+---
+
+Enrollment management and results moderation are two closely linked workflows in the Academic Nexus Portal. Admins use the `AdminEnrollmentApproval` component at `/admin/enrollments` to process course enrollment requests submitted by students, and the `AdminResultsModeration` component at `/admin/results` to review continuous assessment (CA) scores and final exam results submitted by lecturers before they are made visible to students. Registration control — verifying fee payments and blocking or unblocking registrations — is handled at `/admin/registrations`.
+
+## Enrollment management
+
+### Listing and filtering enrollments
+
+The enrollment list supports filtering by status (`pending`, `approved`, `rejected`) using a tab interface. Statistics — total enrollments, pending, approved, and rejected counts — are loaded separately and displayed as summary cards.
+
+```bash
+GET /api/admin/enrollments
+GET /api/admin/enrollments/pending-approval
+Authorization: Bearer {token}
+```
+
+<CodeGroup>
+
+```json Enrollments list response
+{
+  "success": true,
+  "data": {
+    "data": [
+      {
+        "id": 12,
+        "student_name": "Alice Johnson",
+        "matric_number": "STU/2024/001",
+        "semester": 1,
+        "academic_year": "2025/2026",
+        "courses_count": 5,
+        "total_units": 15,
+        "status": "pending",
+        "submitted_at": "2026-01-14T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+```bash Enrollment statistics
+GET /api/admin/enrollments/statistics
+Authorization: Bearer {token}
+```
+
+</CodeGroup>
+
+### Approving and rejecting enrollments
+
+<Steps>
+  <Step title="Approve a single enrollment">
+    ```bash
+    POST /api/admin/enrollments/{id}/approve
+    Authorization: Bearer {token}
+    ```
+  </Step>
+  <Step title="Reject a single enrollment">
+    A rejection reason is required. It is stored and returned to the student.
+
+    ```bash
+    POST /api/admin/enrollments/{id}/reject
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "reason": "Outstanding fee balance must be settled before enrollment can be approved."
+    }
+    ```
+  </Step>
+  <Step title="Bulk approve">
+    Pass an array of enrollment IDs to approve multiple records in one request.
+
+    ```bash
+    POST /api/admin/enrollments/bulk-approve
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "ids": [12, 13, 14, 15]
+    }
+    ```
+  </Step>
+  <Step title="Bulk reject">
+    Bulk rejection requires a shared reason that applies to all selected enrollments.
+
+    ```bash
+    POST /api/admin/enrollments/bulk-reject
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "ids": [16, 17],
+      "reason": "Prerequisite courses not completed."
+    }
+    ```
+  </Step>
+</Steps>
+
+### Audit trail
+
+Every enrollment action is logged. Retrieve the full audit history for a specific enrollment to review who approved, rejected, or modified it and when.
+
+```bash
+GET /api/admin/enrollments/{id}/audit-logs
+Authorization: Bearer {token}
+```
+
+## Results moderation
+
+Lecturers submit CA scores and final exam results for admin review before they are published to students. The `AdminResultsModeration` component separates these into CA and exam workflows.
+
+### CA score moderation
+
+<AccordionGroup>
+  <Accordion title="List pending CA submissions">
+    Returns all CA score batches submitted by lecturers that are awaiting admin approval.
+
+    ```bash
+    GET /api/admin/results/ca/pending
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Approve a CA submission">
+    Approving a CA submission confirms the scores are accurate and ready to be factored into final results.
+
+    ```bash
+    POST /api/admin/results/ca/{id}/approve
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Reject a CA submission">
+    Rejection returns the scores to the lecturer with feedback for corrections. A reason is required.
+
+    ```bash
+    POST /api/admin/results/ca/{id}/reject
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "feedback": "Three students are missing scores. Please review and resubmit."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Exam result moderation
+
+<AccordionGroup>
+  <Accordion title="List pending exam results">
+    ```bash
+    GET /api/admin/results/exams/pending
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Moderate exam results">
+    Moderation marks the result set as reviewed. Moderated results can then be published.
+
+    ```bash
+    POST /api/admin/results/exams/{id}/moderate
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Publish a single result">
+    Once moderated, publish the result to make it visible to students immediately.
+
+    ```bash
+    POST /api/admin/results/exams/{id}/publish
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+  <Accordion title="Bulk publish all moderated results">
+    Publish all results that have passed moderation in a single operation.
+
+    ```bash
+    POST /api/admin/results/exams/bulk-publish
+    Authorization: Bearer {token}
+    ```
+  </Accordion>
+</AccordionGroup>
+
+The results review dialog shows each student's matric number, CA score (out of 30), exam score (out of 70), total score, and letter grade. Review these carefully before approving — once published, students can see their results immediately.
+
+```json Results statistics response
+{
+  "total_pending": 15,
+  "ca_pending": 8,
+  "exam_pending": 7,
+  "approved_today": 5,
+  "rejected_today": 1,
+  "published_this_semester": 23
+}
+```
+
+## Registration management
+
+Student registrations represent a student's formal commitment to a semester's courses, backed by fee payment. The `AdminRegistrationControl` component at `/admin/registrations` manages this workflow.
+
+### Registration statuses
+
+| Status | Meaning |
+|---|---|
+| `pending` | Submitted, awaiting fee verification |
+| `verified` | Fees confirmed, registration active |
+| `blocked` | Administratively blocked |
+
+### Registration endpoints
+
+<CodeGroup>
+
+```bash List registrations
+GET /api/admin/registrations
+Authorization: Bearer {token}
+```
+
+```bash Pending fee verification
+GET /api/admin/registrations/pending-verification
+Authorization: Bearer {token}
+```
+
+```bash Verify fee payment
+POST /api/admin/registrations/{id}/verify-fees
+Authorization: Bearer {token}
+```
+
+```bash Block a registration
+POST /api/admin/registrations/{id}/block
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+</CodeGroup>
+
+```json Block registration body
+{
+  "reason": "Incomplete fee payment — outstanding balance of $500."
+}
+```
+
+<Steps>
+  <Step title="Unblock a registration">
+    Once the student has resolved the issue, unblock their registration to restore access.
+
+    ```bash
+    POST /api/admin/registrations/{id}/unblock
+    Authorization: Bearer {token}
+    ```
+  </Step>
+  <Step title="Administrative override">
+    Use override to force a registration into a specific state when standard workflows cannot be followed.
+
+    ```bash
+    POST /api/admin/registrations/{id}/override
+    Authorization: Bearer {token}
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "status": "verified",
+      "reason": "Manual verification confirmed by finance office."
+    }
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  The registration audit log (`GET /api/admin/registrations/{id}/audit-logs` — note this endpoint is on registrations, not enrollments) records every status change and administrative action for compliance purposes.
+</Note>

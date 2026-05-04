@@ -1,0 +1,164 @@
+---
+title: "View fees, invoices, and payment history"
+description: "Check outstanding fees, view and download invoices, verify payments, upload insurance documents, and review accommodation fees from the student portal."
+---
+
+The fees and payments section of the Academic Nexus Portal gives you a complete picture of your financial obligations for the current registration period. You can check outstanding balances, download individual invoices as PDF files, verify that a payment has been processed, upload your insurance document, and view any accommodation charges applied to your account.
+
+## Overview of your fees
+
+To retrieve a summary of all fees attached to your student account:
+
+```http
+GET /api/student/fees
+```
+
+The response lists each fee category, the amount due, the due date, and whether the fee has been paid. This is the same data that drives the fee status indicator on your dashboard.
+
+## Current registration status
+
+To check your registration status for the active academic period — including whether your fees are cleared and your enrollment is in good standing:
+
+```http
+GET /api/student/registration/current
+```
+
+<Info>
+If your registration is blocked due to outstanding fees, you will see a `blocked` status in this response. Contact the finance office to arrange payment before the registration deadline to avoid losing your course enrollments.
+</Info>
+
+## Invoices
+
+### Listing your invoices
+
+```http
+GET /api/student/registration/invoices
+```
+
+Returns all invoices generated for your account across all registration periods. Each invoice record includes the invoice number, total amount, due date, and payment status (`paid`, `unpaid`, `overdue`).
+
+### Downloading a specific invoice
+
+```http
+GET /api/student/registration/invoices/{id}/download
+```
+
+Returns the invoice as a downloadable PDF. Replace `{id}` with the numeric invoice ID from the listing above.
+
+<Tip>
+Keep downloaded invoices as proof of charges. If a discrepancy arises, the invoice ID is the reference number the finance office will need to locate the record.
+</Tip>
+
+## Payment history
+
+To retrieve a chronological list of all payments recorded against your account:
+
+```http
+GET /api/student/registration/payment-history
+```
+
+Each entry includes the payment date, amount, method, and the invoice it was applied against.
+
+### Downloading a payment receipt
+
+To download a receipt for a specific payment:
+
+```http
+GET /api/student/payments/{id}/receipt
+```
+
+Replace `{id}` with the payment's numeric ID from the history response above.
+
+## Verifying a payment
+
+If you have made a payment and it is not yet reflected in the portal, you can trigger a verification check:
+
+```http
+POST /api/student/registration/payment/verify
+```
+
+<CodeGroup>
+
+```http Request
+POST /api/student/registration/payment/verify
+```
+
+```json Body
+{
+  "payment_reference": "TXN-20240516-00123"
+}
+```
+
+</CodeGroup>
+
+The server checks the payment reference against your account and updates the invoice status if the payment is confirmed. Allow a few minutes after submitting before retrying if the status does not update immediately.
+
+## Insurance upload
+
+Some registration periods require you to submit proof of insurance before your registration can be fully confirmed. To upload your insurance document:
+
+```http
+POST /api/student/insurance/upload
+```
+
+Send the file as `multipart/form-data` with the document attached under the `insurance_document` field.
+
+To check the current verification status of your uploaded insurance document:
+
+```http
+GET /api/student/insurance/status
+```
+
+<AccordionGroup>
+  <Accordion title="Insurance status values">
+    | Status | Meaning |
+    |---|---|
+    | `pending` | Your document has been uploaded and is awaiting review by an administrator. |
+    | `verified` | Your insurance document has been approved. No further action is needed. |
+    | `rejected` | The document was rejected. Check the reason provided and resubmit a corrected document. |
+    | `resubmission_requested` | An administrator has requested a new version of the document. |
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+An unverified or rejected insurance document may block your registration from being confirmed even if all fees are paid. Upload and resolve insurance status before the registration deadline.
+</Warning>
+
+## Accommodation fees
+
+If you are assigned to university accommodation, hostel charges appear separately from tuition fees. To view accommodation-specific fees:
+
+```http
+GET /api/student/accommodation/fees
+```
+
+The response lists the accommodation fee components (room charge, utilities, etc.) along with amounts and payment due dates. These fees are billed through the same invoice system and appear alongside your academic fees in the main fees overview.
+
+## API reference summary
+
+<CardGroup cols={2}>
+  <Card title="Fee overview" icon="circle-dollar-sign">
+    `GET /api/student/fees`
+  </Card>
+  <Card title="Registration status" icon="shield-check">
+    `GET /api/student/registration/current`
+  </Card>
+  <Card title="Invoice list" icon="file-invoice">
+    `GET /api/student/registration/invoices`
+  </Card>
+  <Card title="Download invoice" icon="file-arrow-down">
+    `GET /api/student/registration/invoices/{id}/download`
+  </Card>
+  <Card title="Payment history" icon="clock-rotate-left">
+    `GET /api/student/registration/payment-history`
+  </Card>
+  <Card title="Verify payment" icon="circle-check">
+    `POST /api/student/registration/payment/verify`
+  </Card>
+  <Card title="Upload insurance" icon="upload">
+    `POST /api/student/insurance/upload`
+  </Card>
+  <Card title="Accommodation fees" icon="building">
+    `GET /api/student/accommodation/fees`
+  </Card>
+</CardGroup>

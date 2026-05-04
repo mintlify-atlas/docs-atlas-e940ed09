@@ -1,133 +1,60 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
-icon: 'star'
+title: "Academic Nexus Portal: Unified Academic Management"
+description: "Academic Nexus Portal is a full-stack platform for managing students, courses, grades, fees, and institutional operations across three role-based dashboards."
 ---
 
-## Setting up
+Academic Nexus Portal is a comprehensive academic management system that brings together students, lecturers, and administrators in one unified platform. Whether you're a student checking your GPA, a lecturer submitting continuous assessment scores, or an admin managing hostel allocations — everything you need is in one place.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get the portal running locally in minutes with step-by-step setup for both frontend and backend.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how to log in, manage sessions, and understand the role-based access model.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Student Portal" icon="graduation-cap" href="/student/dashboard">
+    Explore courses, track attendance, view grades, manage fees, and request documents.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Lecturer Portal" icon="chalkboard-user" href="/lecturer/dashboard">
+    Manage continuous assessments, submit exam results, and track student performance.
   </Card>
-</Columns>
+  <Card title="Admin Portal" icon="shield-halved" href="/admin/dashboard">
+    Oversee all institutional operations — enrollments, fees, accommodation, and system settings.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/login">
+    Explore the full REST API with request/response schemas for every endpoint.
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## How the portal works
 
-Everything you need to create world-class documentation.
+Academic Nexus Portal uses a **three-role system** where each role has its own dashboard, permissions, and set of features. All data flows through a RESTful Laravel API authenticated via token-based sessions.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+<Steps>
+  <Step title="Sign in with your role">
+    Navigate to the portal login page and sign in using your institutional credentials. The system automatically routes you to the correct dashboard — Admin, Lecturer, or Student — based on your assigned role.
+  </Step>
+  <Step title="Explore your dashboard">
+    Each dashboard surfaces the most relevant data for your role: students see upcoming classes and pending fees, lecturers see their course rosters and assessment deadlines, and admins see institution-wide statistics and pending approvals.
+  </Step>
+  <Step title="Manage academic records">
+    From your dashboard, navigate to specific modules — courses, grades, attendance, fees, or accommodation — to view, update, or submit records according to your permissions.
+  </Step>
+  <Step title="Download documents and reports">
+    Students can print forms, request official documents, and download timetables. Admins can generate invoices in bulk, export transcripts, and download backup files.
+  </Step>
+</Steps>
 
-## Make your content agent ready
+## Role capabilities at a glance
 
-Make your docs work for humans and AI agents alike.
-
-<Columns cols={2}>
-  <Card
-    title="Prompt component"
-    icon="robot"
-    href="/agent-ready/prompt"
-  >
-    Embed shareable AI prompts readers can copy or open in Cursor.
+<CardGroup cols={3}>
+  <Card title="Students" icon="user-graduate">
+    View enrolled courses, check attendance, track GPA progress, pay fees, manage accommodation, submit feedback, and download official documents.
   </Card>
-  <Card
-    title="Visibility"
-    icon="eye"
-    href="/agent-ready/visibility"
-  >
-    Show different content to humans and agents reading your docs.
+  <Card title="Lecturers" icon="person-chalkboard">
+    Access assigned course rosters, enter continuous assessment scores, submit final exam results for moderation, and view class statistics.
   </Card>
-  <Card
-    title="Contextual menu"
-    icon="bolt"
-    href="/agent-ready/contextual"
-  >
-    Give readers one-click access to Claude, ChatGPT, Cursor, and more.
+  <Card title="Administrators" icon="user-shield">
+    Manage all users, approve enrollments, moderate results, oversee fees and invoices, manage hostel rooms, and configure system settings.
   </Card>
-  <Card
-    title="AI coding tools"
-    icon="wand-magic-sparkles"
-    href="/ai-tools/claude-code"
-  >
-    Set up Claude Code, Cursor, or Windsurf with Mintlify's skill.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+</CardGroup>

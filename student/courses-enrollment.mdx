@@ -1,0 +1,249 @@
+---
+title: "Enroll in courses and manage your schedule"
+description: "Browse the course catalog, check prerequisites, enroll via the API, join the waitlist, and view your timetable and academic calendar."
+---
+
+Course enrollment in the Academic Nexus Portal is a structured process that verifies prerequisites, checks seat availability, and produces a confirmed registration before a course appears on your timetable. This page covers every step from browsing the catalog through to viewing your weekly schedule and upcoming academic events.
+
+## Browsing available courses
+
+All authenticated users can read the course catalog. To retrieve the full list of courses:
+
+```http
+GET /api/courses
+```
+
+To view a specific course including its credits, assigned teacher, and enrollment capacity:
+
+```http
+GET /api/courses/{id}
+```
+
+To see who is already enrolled in a course:
+
+```http
+GET /api/courses/{id}/enrollments
+```
+
+<Info>
+All three endpoints require the `courses.read` permission, which is granted automatically to the `student` role.
+</Info>
+
+## Prerequisite checking
+
+Before the system allows you to enroll, it verifies that you have completed all prerequisite courses. You can query this check directly:
+
+```http
+GET /api/prerequisites/check/{courseId}/{studentId}
+```
+
+The response indicates whether you are eligible to enroll. If you are not eligible, the response lists which prerequisites remain outstanding. You cannot bypass this check — the enrollment endpoint enforces the same logic server-side.
+
+To see all prerequisites defined for a specific course:
+
+```http
+GET /api/prerequisites/course/{courseId}
+```
+
+## Enrolling in a course
+
+Once prerequisites are satisfied and you have confirmed a seat is available, submit an enrollment request:
+
+<Steps>
+  <Step title="Submit enrollment">
+    Send a `POST` request with the course ID in the body:
+
+    ```http
+    POST /api/enrollments
+    ```
+
+    ```json
+    {
+      "course_id": 42
+    }
+    ```
+
+    The server checks prerequisites and seat capacity. On success it returns the new enrollment record with `status: "enrolled"`.
+  </Step>
+  <Step title="Review the enrollment summary">
+    Retrieve a consolidated summary of all your pending and confirmed enrollments:
+
+    ```http
+    GET /api/student/enrollment/summary
+    ```
+  </Step>
+  <Step title="Validate the enrollment">
+    Run the server-side validation step to catch any conflicts (time clashes, credit-hour limits):
+
+    ```http
+    POST /api/student/enrollment/validate
+    ```
+  </Step>
+  <Step title="Confirm the enrollment">
+    Lock in the enrollment for the current registration period:
+
+    ```http
+    POST /api/student/enrollment/confirm
+    ```
+
+    After confirmation the course appears on your timetable and counts toward your registered credit hours on the dashboard.
+  </Step>
+</Steps>
+
+<Warning>
+Enrollments that have not been confirmed before the registration deadline may be dropped by the system at the end of the registration period.
+</Warning>
+
+## Viewing your enrolled courses
+
+To retrieve all courses you are currently enrolled in:
+
+```http
+GET /api/student/courses
+```
+
+The response is an array of enrollment objects. Each object includes the course name, course code, teacher, credits, and the enrollment `status` field (`enrolled`, `pending`, etc.).
+
+You can also view enrollments for a specific student ID if you have the appropriate read permission:
+
+```http
+GET /api/students/{id}/courses
+```
+
+## Course waitlist
+
+When a course is full you can join its waitlist. You are enrolled automatically if a seat opens and your position reaches the front of the queue.
+
+### Joining the waitlist
+
+```http
+POST /api/waitlist
+```
+
+```json
+{
+  "course_id": 42
+}
+```
+
+### Checking your waitlist status
+
+Retrieve all waitlist positions held by a specific student:
+
+```http
+GET /api/waitlist/student/{studentId}
+```
+
+The response includes your position in the queue and the course details. You can also inspect the full waitlist for any course:
+
+```http
+GET /api/waitlist/course/{courseId}
+```
+
+### Leaving the waitlist
+
+To remove yourself from a waitlist position:
+
+```http
+DELETE /api/waitlist/{id}
+```
+
+<Tip>
+The Student Waitlist page at `/student/waitlist` provides a UI view of your waitlist positions without requiring direct API calls.
+</Tip>
+
+## Timetable
+
+After enrollment is confirmed, the course appears in your weekly timetable. Retrieve the structured timetable data for your student account:
+
+```http
+GET /api/timetables/student/{studentId}
+```
+
+The response contains day-of-week, time slot, room, and course information for each scheduled class. You can also download a PDF version of your timetable:
+
+```http
+GET /api/student/timetable/download
+```
+
+The timetable page in the frontend is at `/student/timetable`.
+
+## Academic calendar
+
+The academic calendar lists institution-wide events such as registration periods, exam blocks, public holidays, and semester breaks. To fetch upcoming events:
+
+```http
+GET /api/academic-calendar/upcoming
+```
+
+<AccordionGroup>
+  <Accordion title="Filter by event type">
+    Append query parameters to filter the calendar response:
+
+    ```http
+    GET /api/academic-calendar?event_type=exam
+    ```
+
+    Supported event types: `exam`, `holiday`, `registration`, `orientation`, `break`, `deadline`, `other`.
+  </Accordion>
+  <Accordion title="Filter by semester">
+    ```http
+    GET /api/academic-calendar?semester=2
+    ```
+
+    Semester values range from `1` to `8`.
+  </Accordion>
+  <Accordion title="Check whether a specific date is a holiday">
+    ```http
+    GET /api/academic-calendar/check-holiday/{date}
+    ```
+
+    Date format: `YYYY-MM-DD`. The response returns a boolean and, if a holiday, the event details.
+  </Accordion>
+  <Accordion title="Get currently active events">
+    ```http
+    GET /api/academic-calendar/current
+    ```
+
+    Returns events whose `start_date` is in the past and `end_date` is in the future relative to the current server time.
+  </Accordion>
+</AccordionGroup>
+
+The calendar page in the frontend is at `/student/calendar` and shows all events grouped by month with type-colour coding.
+
+## Enrollment confirmation email
+
+Once your enrollment is confirmed you can retrieve the confirmation email record for a specific enrollment:
+
+```http
+GET /api/student/enrollment/confirmation-email/{id}
+```
+
+## API reference summary
+
+<CardGroup cols={2}>
+  <Card title="Browse courses" icon="book-open">
+    `GET /api/courses`
+  </Card>
+  <Card title="Check prerequisites" icon="circle-check">
+    `GET /api/prerequisites/check/{courseId}/{studentId}`
+  </Card>
+  <Card title="Enroll in a course" icon="plus">
+    `POST /api/enrollments`
+  </Card>
+  <Card title="View enrolled courses" icon="list">
+    `GET /api/student/courses`
+  </Card>
+  <Card title="Join waitlist" icon="clock">
+    `POST /api/waitlist`
+  </Card>
+  <Card title="Check waitlist status" icon="bars-staggered">
+    `GET /api/waitlist/student/{studentId}`
+  </Card>
+  <Card title="Student timetable" icon="calendar">
+    `GET /api/timetables/student/{studentId}`
+  </Card>
+  <Card title="Upcoming calendar events" icon="calendar-days">
+    `GET /api/academic-calendar/upcoming`
+  </Card>
+</CardGroup>

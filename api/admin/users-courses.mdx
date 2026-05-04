@@ -1,0 +1,395 @@
+---
+title: "Admin endpoints: users, courses, and departments"
+description: "API reference for admin management of students, teachers, users, courses, departments, timetables, prerequisites, and degree programs."
+---
+
+These endpoints give administrators full control over the people, academic structures, and scheduling data in the portal. All write operations are permission-gated; the exact permission key is noted for each endpoint. Read operations typically require the corresponding `.read` permission.
+
+<Note>
+  All endpoints in this group require `Authorization: Bearer {token}` and the authenticated user must have the role `admin`. Individual operations are additionally gated by granular permissions (e.g. `users.create`, `courses.update`).
+</Note>
+
+---
+
+## Dashboard
+
+Returns institution-wide statistics: enrolled student count, active teacher count, active course count, active department count, fee collection totals, and lists of recent enrollments and payments.
+
+**GET** `/api/admin/dashboard`
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/admin/dashboard \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.total_students" type="integer">Active enrolled student count.</ResponseField>
+<ResponseField name="data.total_teachers" type="integer">Active teacher count.</ResponseField>
+<ResponseField name="data.total_courses" type="integer">Active course count.</ResponseField>
+<ResponseField name="data.total_departments" type="integer">Active department count.</ResponseField>
+<ResponseField name="data.fee_collection" type="object">
+  <Expandable title="fee collection">
+    <ResponseField name="total" type="number">Sum of all fee amounts.</ResponseField>
+    <ResponseField name="collected" type="number">Sum of paid amounts.</ResponseField>
+    <ResponseField name="pending" type="number">Sum of pending amounts.</ResponseField>
+    <ResponseField name="overdue" type="number">Sum of overdue amounts.</ResponseField>
+  </Expandable>
+</ResponseField>
+<ResponseField name="data.recent_enrollments" type="array">Last 5 newly enrolled students.</ResponseField>
+<ResponseField name="data.recent_payments" type="array">Last 5 completed payments.</ResponseField>
+
+---
+
+## Users
+
+### List users
+
+**GET** `/api/admin/users`
+
+Supports query parameters `search` (name or email), `role` (`admin`, `teacher`, `student`), and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/users?role=teacher&per_page=20' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Get user
+
+**GET** `/api/admin/users/{id}`
+
+### Create user
+
+**POST** `/api/admin/users`
+
+<ParamField body="name" type="string" required>Full name.</ParamField>
+<ParamField body="email" type="string" required>Unique email address.</ParamField>
+<ParamField body="password" type="string" required>Minimum 8 characters.</ParamField>
+<ParamField body="role" type="string" required>`admin`, `teacher`, or `student`.</ParamField>
+<ParamField body="phone" type="string">Contact phone number.</ParamField>
+<ParamField body="address" type="string">Postal address.</ParamField>
+<ParamField body="date_of_birth" type="string">ISO 8601 date.</ParamField>
+<ParamField body="gender" type="string">`male`, `female`, or `other`.</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/users \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "Jane Doe",
+    "email": "jane.doe@institution.edu",
+    "password": "securepassword",
+    "role": "teacher"
+  }'
+```
+
+### Update user
+
+**PUT** `/api/admin/users/{id}`
+
+All fields from the create body are accepted. Only fields provided are updated.
+
+### Delete user
+
+**DELETE** `/api/admin/users/{id}`
+
+<Warning>
+  You cannot delete your own account. Attempting to do so returns `403 Forbidden`. User deletion is permanent.
+</Warning>
+
+---
+
+## Students
+
+### List students
+
+**GET** `/api/admin/students`
+
+Supports `search` (name, email, or student ID), `department_id`, `status`, and `per_page`.
+
+### Get student
+
+**GET** `/api/admin/students/{id}`
+
+### Create student
+
+**POST** `/api/admin/students`
+
+<ParamField body="name" type="string" required>Full name.</ParamField>
+<ParamField body="email" type="string" required>Unique email address.</ParamField>
+<ParamField body="password" type="string" required>Minimum 8 characters.</ParamField>
+<ParamField body="student_id" type="string" required>Unique institutional student number.</ParamField>
+<ParamField body="department_id" type="integer" required>ID of the student's department.</ParamField>
+<ParamField body="admission_date" type="string" required>ISO 8601 date.</ParamField>
+<ParamField body="phone" type="string">Contact phone number.</ParamField>
+<ParamField body="address" type="string">Postal address.</ParamField>
+<ParamField body="date_of_birth" type="string">ISO 8601 date.</ParamField>
+<ParamField body="gender" type="string">`male`, `female`, or `other`.</ParamField>
+<ParamField body="parent_name" type="string">Guardian full name.</ParamField>
+<ParamField body="parent_phone" type="string">Guardian phone number.</ParamField>
+<ParamField body="parent_email" type="string">Guardian email address.</ParamField>
+
+### Update student
+
+**PUT** `/api/admin/students/{id}`
+
+---
+
+## Teachers
+
+### List teachers
+
+**GET** `/api/admin/teachers`
+
+Supports `search` (name, email, or employee ID), `department_id`, and `per_page`.
+
+### Create teacher
+
+**POST** `/api/admin/teachers`
+
+<ParamField body="name" type="string" required>Full name.</ParamField>
+<ParamField body="email" type="string" required>Unique email address.</ParamField>
+<ParamField body="password" type="string" required>Minimum 8 characters.</ParamField>
+<ParamField body="employee_id" type="string" required>Unique employee number.</ParamField>
+<ParamField body="department_id" type="integer" required>ID of the teacher's department.</ParamField>
+<ParamField body="designation" type="string" required>Job title or rank.</ParamField>
+<ParamField body="joining_date" type="string" required>ISO 8601 date.</ParamField>
+<ParamField body="phone" type="string">Contact phone number.</ParamField>
+<ParamField body="qualification" type="string">Highest qualification.</ParamField>
+<ParamField body="specialization" type="string">Subject specialization.</ParamField>
+
+---
+
+## Departments
+
+### List departments
+
+**GET** `/api/admin/departments`
+
+Returns all departments with their head teacher details.
+
+### Get department statistics
+
+**GET** `/api/admin/departments/statistics`
+
+Returns per-department counts of students, teachers, and courses.
+
+### List available teachers
+
+**GET** `/api/admin/departments/available-teachers`
+
+Returns teachers not currently assigned as a department head.
+
+### Create department
+
+**POST** `/api/admin/departments`
+
+<ParamField body="name" type="string" required>Department name.</ParamField>
+<ParamField body="code" type="string" required>Unique short code (e.g. `CS`).</ParamField>
+<ParamField body="description" type="string">Optional description.</ParamField>
+<ParamField body="head_teacher_id" type="integer">ID of the teacher to assign as head.</ParamField>
+
+### Update department
+
+**PUT** `/api/admin/departments/{id}`
+
+### Delete department
+
+**DELETE** `/api/admin/departments/{id}`
+
+### Assign department head
+
+**POST** `/api/admin/departments/{id}/assign-head`
+
+<ParamField body="teacher_id" type="integer" required>
+  ID of the teacher to assign as head of this department.
+</ParamField>
+
+---
+
+## Courses
+
+### List courses
+
+**GET** `/api/admin/courses`
+
+Supports `search` (name or code), `department_id`, and `per_page`.
+
+### Get course
+
+**GET** `/api/admin/courses/{id}`
+
+### Create course
+
+**POST** `/api/admin/courses`
+
+<ParamField body="name" type="string" required>Full course name.</ParamField>
+<ParamField body="code" type="string" required>Unique course code.</ParamField>
+<ParamField body="department_id" type="integer" required>Owning department.</ParamField>
+<ParamField body="teacher_id" type="integer" required>Assigned teacher.</ParamField>
+<ParamField body="credits" type="integer" required>Credit hours (minimum 1).</ParamField>
+<ParamField body="semester" type="integer" required>Semester number (minimum 1).</ParamField>
+<ParamField body="start_date" type="string" required>ISO 8601 start date.</ParamField>
+<ParamField body="end_date" type="string" required>ISO 8601 end date, after `start_date`.</ParamField>
+<ParamField body="max_students" type="integer">Maximum enrollment capacity.</ParamField>
+<ParamField body="description" type="string">Course description.</ParamField>
+
+### Update course
+
+**PUT** `/api/admin/courses/{id}`
+
+All create fields are accepted; only provided fields are updated. Additionally accepts `status` (`active`, `inactive`, `completed`, `cancelled`).
+
+### Delete course
+
+**DELETE** `/api/admin/courses/{id}`
+
+<Warning>
+  Courses with existing enrollments cannot be deleted. The API returns `409 Conflict` with a message to remove enrollments first.
+</Warning>
+
+---
+
+## Prerequisites
+
+### List prerequisites
+
+**GET** `/api/admin/prerequisites`
+
+### Get prerequisite
+
+**GET** `/api/admin/prerequisites/{id}`
+
+### Create prerequisite
+
+**POST** `/api/admin/prerequisites`
+
+<ParamField body="course_id" type="integer" required>The course that has the prerequisite.</ParamField>
+<ParamField body="prerequisite_course_id" type="integer" required>The course that must be completed first.</ParamField>
+
+### Update prerequisite
+
+**PUT** `/api/admin/prerequisites/{id}`
+
+### Delete prerequisite
+
+**DELETE** `/api/admin/prerequisites/{id}`
+
+---
+
+## Timetables
+
+### List timetables
+
+**GET** `/api/admin/timetables`
+
+### Create timetable entry
+
+**POST** `/api/admin/timetables`
+
+### Get timetable entry
+
+**GET** `/api/admin/timetables/{id}`
+
+### Update timetable entry
+
+**PUT** `/api/admin/timetables/{id}`
+
+### Delete timetable entry
+
+**DELETE** `/api/admin/timetables/{id}`
+
+### Student timetable
+
+**GET** `/api/timetables/student/{studentId}`
+
+Returns all scheduled sessions for a given student based on their enrollments.
+
+```bash cURL
+curl --request GET \
+  --url https://your-domain.com/api/timetables/student/42 \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Teacher timetable
+
+**GET** `/api/timetables/teacher/{teacherId}`
+
+Returns all scheduled sessions for a given teacher.
+
+---
+
+## Academic calendars
+
+### List calendar events
+
+**GET** `/api/admin/academic-calendars`
+
+### Create calendar event
+
+**POST** `/api/admin/academic-calendars`
+
+### Get calendar event
+
+**GET** `/api/admin/academic-calendars/{id}`
+
+### Update calendar event
+
+**PUT** `/api/admin/academic-calendars/{id}`
+
+### Delete calendar event
+
+**DELETE** `/api/admin/academic-calendars/{id}`
+
+### Upcoming events (public read)
+
+**GET** `/api/academic-calendar/upcoming`
+
+Returns events occurring after the current date. Accessible to all authenticated users.
+
+### Current events (public read)
+
+**GET** `/api/academic-calendar/current`
+
+Returns events active at the current date.
+
+---
+
+## Degree programs
+
+### List degree programs
+
+**GET** `/api/admin/degree-programs`
+
+### Create degree program
+
+**POST** `/api/admin/degree-programs`
+
+<ParamField body="name" type="string" required>Program name (e.g. `Bachelor of Computer Science`).</ParamField>
+<ParamField body="code" type="string" required>Unique program code.</ParamField>
+<ParamField body="department_id" type="integer" required>Owning department.</ParamField>
+<ParamField body="duration_years" type="integer">Program duration in years.</ParamField>
+<ParamField body="description" type="string">Optional description.</ParamField>
+
+### Get degree program
+
+**GET** `/api/admin/degree-programs/{id}`
+
+### Update degree program
+
+**PUT** `/api/admin/degree-programs/{id}`
+
+### Delete degree program
+
+**DELETE** `/api/admin/degree-programs/{id}`
+
+### Add program requirement
+
+**POST** `/api/admin/degree-programs/{programId}/requirements`
+
+Links a course as a requirement for completing the specified degree program.
+
+<ParamField body="course_id" type="integer" required>Course to add as a requirement.</ParamField>
+<ParamField body="is_mandatory" type="boolean">Whether the course is compulsory. Defaults to `true`.</ParamField>
+<ParamField body="min_grade" type="string">Minimum passing grade for this requirement.</ParamField>

@@ -1,0 +1,303 @@
+---
+title: "Student registration, enrollment, and payment endpoints"
+description: "API reference for student registration status, enrollment confirmation flow, invoice retrieval, payment verification, and insurance document upload."
+---
+
+The registration endpoints cover all financial and enrollment administrative processes for a student: checking the current semester registration record, reviewing payment and invoice history, verifying payments by reference, uploading health insurance documents, and confirming or validating course enrollment. The insurance endpoints are mounted under both `/api/student/registration/` and `/api/student/` — both paths are supported.
+
+<Note>All endpoints on this page require `Authorization: Bearer {token}` and the `student` role.</Note>
+
+---
+
+## GET /api/student/registration/current
+
+Returns the registration record for the authenticated student in the current active semester.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/registration/current \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="registration" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="id" type="number">Registration record ID.</ResponseField>
+    <ResponseField name="semester_code" type="string">Current semester code, e.g. `"2025-2"`.</ResponseField>
+    <ResponseField name="academic_year" type="string">Academic year, e.g. `"2025/2026"`.</ResponseField>
+    <ResponseField name="status" type="string">Registration status: `pending`, `fees_verified`, `insurance_verified`, `blocked`, or `complete`.</ResponseField>
+    <ResponseField name="total_fees" type="number">Total fee amount due for the semester.</ResponseField>
+    <ResponseField name="amount_paid" type="number">Amount paid to date.</ResponseField>
+    <ResponseField name="balance" type="number">Outstanding balance.</ResponseField>
+    <ResponseField name="fees_verified" type="boolean">Whether the finance office has verified payment.</ResponseField>
+    <ResponseField name="insurance_verified" type="boolean">Whether the submitted insurance document has been verified.</ResponseField>
+    <ResponseField name="registration_date" type="string">ISO 8601 timestamp of initial registration.</ResponseField>
+    <ResponseField name="verified_by" type="object">Staff member who verified the record (`id`, `name`), if applicable.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="payment_percentage" type="number" required>
+  Percentage of total fees paid, e.g. `75.0`.
+</ResponseField>
+
+<ResponseField name="fully_verified" type="boolean" required>
+  `true` if both `fees_verified` and `insurance_verified` are `true`.
+</ResponseField>
+
+---
+
+## GET /api/student/registration/history
+
+Returns all registration records across all semesters for the authenticated student.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/registration/history \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="registrations" type="object[]" required>
+  Array of registration summaries ordered by creation date descending. Each entry includes `id`, `semester_code`, `academic_year`, `status`, `total_fees`, `amount_paid`, `balance`, `fees_verified`, `insurance_verified`, `registration_date`, and `payment_percentage`.
+</ResponseField>
+
+<ResponseField name="total_count" type="number" required>
+  Total number of registration records.
+</ResponseField>
+
+---
+
+## GET /api/student/registration/invoices
+
+Returns all invoices issued to the authenticated student.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/registration/invoices \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="invoices" type="object[]" required>
+  Array of invoice records ordered by creation date descending. Each invoice includes `id`, `invoice_number`, `amount`, `status`, `due_date`, and `created_at`.
+</ResponseField>
+
+<ResponseField name="total_count" type="number" required>
+  Total number of invoices.
+</ResponseField>
+
+---
+
+## GET /api/student/registration/invoices/{id}/download
+
+Downloads a specific invoice as a PDF file.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/registration/invoices/18/download \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --output invoice_INV-2025-0018.pdf
+```
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  The invoice ID. The invoice must belong to the authenticated student.
+</ParamField>
+
+Returns a `Content-Disposition: attachment` PDF response. The filename follows the pattern `invoice_{invoice_number}.pdf`.
+
+---
+
+## GET /api/student/registration/payment-history
+
+Returns all payment records for the authenticated student, ordered by payment date descending.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/registration/payment-history \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="payments" type="object[]" required>
+  Array of payment records. Each includes `id`, `amount`, `reference`, `payment_date`, `status`, and `invoice_id`.
+</ResponseField>
+
+<ResponseField name="total_paid" type="number" required>
+  Sum of all payment amounts.
+</ResponseField>
+
+<ResponseField name="total_count" type="number" required>
+  Total number of payment records.
+</ResponseField>
+
+---
+
+## POST /api/student/registration/payment/verify
+
+Checks whether a payment with a given reference number exists and belongs to the authenticated student. Use this to confirm that a bank transfer or third-party gateway payment has been recorded.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/registration/payment/verify \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "reference": "TRX-2025-00123456"
+  }'
+```
+
+### Request body
+
+<ParamField body="reference" type="string" required>
+  The payment reference number to verify.
+</ParamField>
+
+### Response
+
+<ResponseField name="verified" type="boolean" required>
+  `true` if a payment with this reference was found for the student.
+</ResponseField>
+
+<ResponseField name="payment" type="object">
+  The matched payment record, present only when `verified` is `true`.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable result message.
+</ResponseField>
+
+---
+
+## POST /api/student/insurance/upload
+
+Uploads a health insurance document for the current semester. Accepted formats are PDF, JPG, JPEG, and PNG (maximum 5 MB). If an insurance record already exists for the semester, it is updated in place.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/insurance/upload \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --form 'semester_code=2025-2' \
+  --form 'provider=nhis' \
+  --form 'policy_number=NHIS-9876543' \
+  --form 'expiry_date=2026-12-31' \
+  --form 'document=@/path/to/insurance_card.pdf'
+```
+
+### Request body (multipart/form-data)
+
+<ParamField body="semester_code" type="string" required>
+  The semester code this document applies to, e.g. `"2025-2"`.
+</ParamField>
+
+<ParamField body="provider" type="string" required>
+  Insurance provider type. One of `nhis`, `private`, or `other`.
+</ParamField>
+
+<ParamField body="policy_number" type="string">
+  The insurance policy number.
+</ParamField>
+
+<ParamField body="expiry_date" type="string" required>
+  Expiry date of the insurance in `YYYY-MM-DD` format. Must be a future date.
+</ParamField>
+
+<ParamField body="document" type="file" required>
+  The insurance document file. Accepted MIME types: `application/pdf`, `image/jpeg`, `image/png`. Maximum size: 5 MB.
+</ParamField>
+
+### Response
+
+Returns `201 Created` with the created or updated insurance record and a confirmation message.
+
+---
+
+## GET /api/student/insurance/status
+
+Returns the insurance verification status for the authenticated student in the current semester.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/insurance/status \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="insurance" type="object">
+  The insurance record if one exists: `provider`, `policy_number`, `status` (`pending`, `verified`, or `rejected`), `expiry_date`, `submission_date`, `verified_by`, and optional `rejection_reason`.
+</ResponseField>
+
+<ResponseField name="is_valid" type="boolean">
+  `true` if the insurance is verified and not expired.
+</ResponseField>
+
+<ResponseField name="is_expired" type="boolean">
+  `true` if the `expiry_date` has passed.
+</ResponseField>
+
+<ResponseField name="document_url" type="string">
+  Public URL to the uploaded document, or `null` if no document is on record.
+</ResponseField>
+
+<ResponseField name="has_insurance" type="boolean">
+  `false` if no insurance record exists for the current semester. In this case no other fields are returned.
+</ResponseField>
+
+---
+
+## GET /api/student/enrollment/summary
+
+Returns a summary of the student's current enrollment confirmation status.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/enrollment/summary \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+---
+
+## POST /api/student/enrollment/validate
+
+Validates whether the student is eligible to confirm enrollment for the current semester. Checks fee payment, insurance status, and any administrative blocks before confirmation.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/enrollment/validate \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+---
+
+## POST /api/student/enrollment/confirm
+
+Confirms enrollment for the current semester once all eligibility requirements are satisfied. Sends a confirmation email to the student.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/student/enrollment/confirm \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+---
+
+## POST /api/enrollments
+
+Enroll the authenticated student in a course. Requires the `student` or `admin` role.
+
+```bash
+curl --request POST \
+  --url https://your-domain.com/api/enrollments \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "course_id": 15,
+    "student_id": 7
+  }'
+```
+
+<ParamField body="course_id" type="number" required>
+  ID of the course to enroll in.
+</ParamField>
+
+<ParamField body="student_id" type="number" required>
+  ID of the student record. Students should use their own ID; admins may specify any student.
+</ParamField>

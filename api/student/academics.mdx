@@ -1,0 +1,253 @@
+---
+title: "Student academic performance and GPA endpoints"
+description: "API endpoints for retrieving semester performance, course breakdowns, GPA summaries, historical records, and downloading the academic transcript."
+---
+
+The academics endpoints provide students with detailed visibility into their academic performance. This includes current semester CA and exam scores, per-course breakdowns, historical semester summaries, cumulative GPA, and transcript downloads. Additionally, the degree-progress endpoints expose overall program completion status and remaining requirements.
+
+<Note>All endpoints on this page require `Authorization: Bearer {token}` and the `student` role unless otherwise noted. The degree-progress and shared GPA endpoints require a valid bearer token but are accessible by students, teachers, and admins with the `grades.read` permission.</Note>
+
+---
+
+## GET /api/student/academics/current-semester
+
+Returns the authenticated student's performance for the active semester, including per-course CA scores, final exam scores, computed grades, and the overall semester GPA.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/academics/current-semester \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Response
+
+<ResponseField name="semester_code" type="string" required>
+  The active semester code, e.g. `"2025-2"`.
+</ResponseField>
+
+<ResponseField name="course_performance" type="object[]" required>
+  <Expandable title="properties">
+    <ResponseField name="course_id" type="number">Course ID.</ResponseField>
+    <ResponseField name="course_code" type="string">Course code, e.g. `"CSC301"`.</ResponseField>
+    <ResponseField name="course_title" type="string">Full course name.</ResponseField>
+    <ResponseField name="units" type="number">Credit units for the course.</ResponseField>
+    <ResponseField name="ca_score" type="number">Total weighted CA score (max 30).</ResponseField>
+    <ResponseField name="final_exam_score" type="number">Final exam score (max 70).</ResponseField>
+    <ResponseField name="total_score" type="number">Combined score out of 100.</ResponseField>
+    <ResponseField name="grade" type="string">Letter grade: `A`, `B`, `C`, `D`, `E`, or `F`.</ResponseField>
+    <ResponseField name="ca_breakdown" type="object[]">
+      Individual CA entries with `type`, `number`, `score`, `max_score`, `weight`, `weighted_score`, and `percentage`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="semester_gpa" type="number" required>
+  Computed GPA for the current semester on a 5.0 scale.
+</ResponseField>
+
+<ResponseField name="total_courses" type="number" required>
+  Number of enrolled courses this semester.
+</ResponseField>
+
+<ResponseField name="total_units" type="number" required>
+  Total credit units registered this semester.
+</ResponseField>
+
+---
+
+## GET /api/student/academics/course/{courseId}/breakdown
+
+Returns a detailed grade breakdown for a single course, split by CA type and including final exam information.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/academics/course/12/breakdown \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="courseId" type="number" required>
+  The ID of the course. The student must be enrolled in this course for the current semester.
+</ParamField>
+
+### Response
+
+<ResponseField name="course" type="object" required>
+  Full course record.
+</ResponseField>
+
+<ResponseField name="continuous_assessment" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="by_type" type="object">
+      CA entries grouped by assessment type. Each group includes an `assessments` array, `subtotal`, and `count`.
+    </ResponseField>
+    <ResponseField name="total" type="number">Total weighted CA score.</ResponseField>
+    <ResponseField name="max" type="number">Maximum possible CA score (30).</ResponseField>
+    <ResponseField name="percentage" type="number">CA score as a percentage of 30.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="final_exam" type="object" required>
+  <Expandable title="properties">
+    <ResponseField name="score" type="number">Final exam score.</ResponseField>
+    <ResponseField name="max" type="number">Maximum possible score (70).</ResponseField>
+    <ResponseField name="percentage" type="number">Score as a percentage of 70.</ResponseField>
+    <ResponseField name="date" type="string">Exam date in ISO 8601 format.</ResponseField>
+    <ResponseField name="venue" type="string">Exam venue.</ResponseField>
+    <ResponseField name="status" type="string">One of `pending`, `completed`, or `published`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_score" type="number" required>Combined score out of 100.</ResponseField>
+<ResponseField name="grade" type="string" required>Letter grade.</ResponseField>
+<ResponseField name="grade_point" type="number" required>Grade point on a 5.0 scale.</ResponseField>
+
+---
+
+## GET /api/student/academics/historical
+
+Returns all historical semester summaries for the authenticated student, ordered by semester code descending.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/academics/historical \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="historical_records" type="object[]" required>
+  Array of `SemesterSummary` records. Each includes `semester_code`, `academic_year`, `total_courses`, `total_units`, `semester_gpa`, `cumulative_gpa`, `total_units_earned`, and `semester_status`.
+</ResponseField>
+
+<ResponseField name="total_semesters" type="number" required>
+  Total number of semesters on record.
+</ResponseField>
+
+<ResponseField name="current_cgpa" type="number" required>
+  Cumulative GPA from the most recent semester summary.
+</ResponseField>
+
+<ResponseField name="total_units_earned" type="number" required>
+  Total credit units earned across all semesters.
+</ResponseField>
+
+---
+
+## GET /api/student/academics/semester/{semesterCode}
+
+Returns performance data for a specific historical semester.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/academics/semester/2024-1 \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="semesterCode" type="string" required>
+  Semester code in `YYYY-N` format, e.g. `"2024-1"` for the first semester of 2024.
+</ParamField>
+
+<ResponseField name="semester_code" type="string" required>The requested semester code.</ResponseField>
+<ResponseField name="academic_year" type="string" required>Academic year, e.g. `"2024/2025"`.</ResponseField>
+<ResponseField name="summary" type="object" required>The `SemesterSummary` record for this semester.</ResponseField>
+<ResponseField name="courses" type="object[]" required>
+  Per-course details: `course_code`, `course_title`, `units`, `ca_score`, `exam_score`, `total_score`, `grade`, and `grade_point`.
+</ResponseField>
+
+---
+
+## GET /api/student/academics/transcript/download
+
+Generates and downloads the student's official academic transcript as a PDF file.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/academics/transcript/download \
+  --header 'Authorization: Bearer 1|abc123xyz...' \
+  --output transcript.pdf
+```
+
+Returns a `Content-Disposition: attachment` PDF response. The filename follows the pattern `transcript_{matric_no}.pdf`.
+
+---
+
+## GET /api/student/academics/gpa-summary
+
+Returns a concise GPA summary across all semesters, including academic standing indicators.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/student/academics/gpa-summary \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ResponseField name="current_semester_gpa" type="number" required>GPA for the most recent semester.</ResponseField>
+<ResponseField name="cumulative_gpa" type="number" required>Overall cumulative GPA.</ResponseField>
+<ResponseField name="total_units_earned" type="number" required>Total credit units earned.</ResponseField>
+<ResponseField name="total_semesters" type="number" required>Number of completed semesters.</ResponseField>
+<ResponseField name="academic_standing" type="string" required>Current academic standing label from the semester summary.</ResponseField>
+<ResponseField name="is_good_standing" type="boolean" required>`true` if the student is in good academic standing.</ResponseField>
+<ResponseField name="is_on_probation" type="boolean" required>`true` if the student is on academic probation.</ResponseField>
+<ResponseField name="semester_history" type="object[]" required>
+  Chronological array of semester GPA entries: `semester_code`, `semester_gpa`, `cumulative_gpa`, `total_units`, and `status`.
+</ResponseField>
+
+---
+
+## GET /api/students/{studentId}/gpa
+
+Returns the GPA record for a specific student by their student record ID. Students may only access their own record; teachers and admins can access any.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/students/7/gpa \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+### Path parameters
+
+<ParamField path="studentId" type="number" required>
+  The student record ID (not the `student_id` string).
+</ParamField>
+
+---
+
+## GET /api/degree-progress/student/{studentId}
+
+Returns the overall degree progress record for the given student, including completion percentage and linked degree program details.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/degree-progress/student/7 \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+<ParamField path="studentId" type="number" required>
+  The student record ID.
+</ParamField>
+
+---
+
+## GET /api/degree-progress/student/{studentId}/transcript
+
+Returns the student's academic transcript as structured data (JSON), sourced from the degree progress module.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/degree-progress/student/7/transcript \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```
+
+---
+
+## GET /api/degree-progress/student/{studentId}/remaining
+
+Returns the remaining degree requirements for the given student — courses not yet completed that are still required for graduation.
+
+```bash
+curl --request GET \
+  --url https://your-domain.com/api/degree-progress/student/7/remaining \
+  --header 'Authorization: Bearer 1|abc123xyz...'
+```

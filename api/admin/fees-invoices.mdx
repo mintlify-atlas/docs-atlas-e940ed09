@@ -1,0 +1,421 @@
+---
+title: "Admin endpoints: fee structures, invoices, and payments"
+description: "API reference for configuring fee structures, generating individual and bulk invoices, recording payments, issuing refunds, and viewing payment statistics."
+---
+
+The fees, invoices, and payments endpoints form the financial management layer of the portal. Fee structures define what students owe per program and semester; invoices are generated from those structures for individual students or in bulk; payments record money received against invoices; and the insurance group manages student medical cover verification.
+
+<Note>
+  All endpoints in this group require `Authorization: Bearer {token}` and the authenticated user must have the role `admin`. Individual operations are gated by `fees.read`, `fees.create`, `fees.update`, or `fees.delete` permissions.
+</Note>
+
+---
+
+## Fee structures
+
+A fee structure defines the amount, type, and due date for a program–semester combination. Invoices derive their `amount_due` from the linked fee structure.
+
+### List fee structures
+
+**GET** `/api/admin/fee-structures`
+
+Supports query parameters `program`, `semester`, `status` (`active`, `inactive`), `fee_type`, and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/fee-structures?program=BCS&semester=3' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Create fee structure
+
+**POST** `/api/admin/fee-structures`
+
+<ParamField body="program" type="string" required>
+  Program identifier string (e.g. `BCS`, `MBA`).
+</ParamField>
+
+<ParamField body="semester" type="integer" required>
+  Semester number. Must be between 1 and 8.
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+  Fee amount. Must be `>= 0`.
+</ParamField>
+
+<ParamField body="due_date" type="string" required>
+  ISO 8601 payment due date.
+</ParamField>
+
+<ParamField body="fee_type" type="string" required>
+  Type of fee (e.g. `tuition`, `library`, `examination`).
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description shown on invoices.
+</ParamField>
+
+<ParamField body="status" type="string">
+  `active` or `inactive`. Defaults to `active`.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/fee-structures \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "program": "BCS",
+    "semester": 3,
+    "amount": 4500.00,
+    "due_date": "2026-09-01",
+    "fee_type": "tuition",
+    "description": "Semester 3 tuition fee"
+  }'
+```
+
+### Get fee structure
+
+**GET** `/api/admin/fee-structures/{id}`
+
+### Update fee structure
+
+**PUT** `/api/admin/fee-structures/{id}`
+
+All create fields are accepted; only provided fields are updated.
+
+### Delete fee structure
+
+**DELETE** `/api/admin/fee-structures/{id}`
+
+### Get by program and semester
+
+**GET** `/api/admin/fee-structures/program-semester?program=BCS&semester=3`
+
+Returns all active fee structures for a specific program–semester combination. Both `program` and `semester` query parameters are required.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/fee-structures/program-semester?program=BCS&semester=3' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Get overdue fee structures
+
+**GET** `/api/admin/fee-structures/overdue`
+
+Returns active fee structures whose `due_date` is in the past, ordered by due date descending.
+
+---
+
+## Invoices
+
+Invoices are created from fee structures and issued to individual students. They track amount due, amount paid, and outstanding balance. The invoice status is automatically updated as payments are recorded.
+
+### List invoices
+
+**GET** `/api/admin/invoices`
+
+Supports query parameters `student_id`, `status` (`pending`, `partial`, `paid`, `overdue`, `cancelled`), `overdue` (boolean), `due_date_from`, `due_date_to`, and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/invoices?status=overdue' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Create invoice
+
+**POST** `/api/admin/invoices`
+
+Creates a single invoice for one student from an existing fee structure.
+
+<ParamField body="student_id" type="integer" required>
+  ID of the student to invoice.
+</ParamField>
+
+<ParamField body="fee_structure_id" type="integer" required>
+  ID of the fee structure. The `amount_due` is taken from this record.
+</ParamField>
+
+<ParamField body="due_date" type="string">
+  Override due date. If omitted, defaults to the fee structure's `due_date`.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Override description. If omitted, defaults to the fee structure's description.
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Internal notes, not shown to the student.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/invoices \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "student_id": 42,
+    "fee_structure_id": 7,
+    "notes": "Late joiner — adjusted due date"
+  }'
+```
+
+### Generate bulk invoices
+
+**POST** `/api/admin/invoices/bulk`
+
+Generates invoices for multiple students from a single fee structure in one request. Students who already have an invoice for the specified fee structure are skipped.
+
+<ParamField body="fee_structure_id" type="integer" required>
+  Fee structure to invoice from.
+</ParamField>
+
+<ParamField body="student_ids" type="array" required>
+  Array of student IDs to invoice.
+</ParamField>
+
+<ParamField body="due_date" type="string">
+  Override due date for all generated invoices.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Override description for all generated invoices.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/invoices/bulk \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "fee_structure_id": 7,
+    "student_ids": [42, 43, 44, 45]
+  }'
+```
+
+<ResponseField name="data.invoices" type="array">
+  Newly created invoice objects.
+</ResponseField>
+
+<ResponseField name="data.created_count" type="integer">
+  Number of invoices created.
+</ResponseField>
+
+<ResponseField name="data.total_requested" type="integer">
+  Number of student IDs submitted. The difference from `created_count` indicates how many were skipped.
+</ResponseField>
+
+### Get overdue invoices
+
+**GET** `/api/admin/invoices/overdue`
+
+Returns invoices past their due date with an outstanding balance.
+
+### Get student invoices
+
+**GET** `/api/admin/invoices/student/{studentId}`
+
+Returns all invoices for a specific student. Supports optional `status` filter.
+
+### Get invoice
+
+**GET** `/api/admin/invoices/{id}`
+
+### Update invoice
+
+**PUT** `/api/admin/invoices/{id}`
+
+<ParamField body="due_date" type="string">New due date.</ParamField>
+<ParamField body="description" type="string">Updated description.</ParamField>
+<ParamField body="notes" type="string">Updated internal notes.</ParamField>
+<ParamField body="status" type="string">`pending`, `partial`, `paid`, `overdue`, or `cancelled`.</ParamField>
+
+### Delete invoice
+
+**DELETE** `/api/admin/invoices/{id}`
+
+<Warning>
+  Invoices with existing payment records cannot be deleted. The API returns `422 Unprocessable Entity` if payments exist. Void the invoice by updating its status to `cancelled` instead.
+</Warning>
+
+---
+
+## Payments
+
+Payment records represent money received against a specific invoice. The system validates that the payment amount does not exceed the invoice's remaining balance.
+
+### List payments
+
+**GET** `/api/admin/payments`
+
+Supports query parameters `invoice_id`, `payment_method`, `status`, `date_from`, `date_to`, and `per_page`.
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/payments?payment_method=bank_transfer' \
+  --header 'Authorization: Bearer {token}'
+```
+
+### Record payment
+
+**POST** `/api/admin/payments`
+
+<ParamField body="invoice_id" type="integer" required>
+  Invoice being paid.
+</ParamField>
+
+<ParamField body="amount_paid" type="number" required>
+  Amount received. Must be greater than `0` and not exceed the invoice's remaining balance.
+</ParamField>
+
+<ParamField body="payment_method" type="string" required>
+  One of: `cash`, `bank_transfer`, `credit_card`, `debit_card`, `cheque`, `online`.
+</ParamField>
+
+<ParamField body="payment_date" type="string">
+  ISO 8601 date the payment was received. Defaults to current date.
+</ParamField>
+
+<ParamField body="transaction_id" type="string">
+  Bank or gateway reference number. Maximum 255 characters.
+</ParamField>
+
+<ParamField body="payment_notes" type="string">
+  Internal notes about this payment.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/payments \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "invoice_id": 101,
+    "amount_paid": 2250.00,
+    "payment_method": "bank_transfer",
+    "transaction_id": "TXN-2026-00481"
+  }'
+```
+
+<ResponseField name="data" type="object">
+  The created payment record with status `completed` and updated invoice balance.
+</ResponseField>
+
+### Get payment statistics
+
+**GET** `/api/admin/payments/stats`
+
+Returns totals and breakdowns for a date range. Defaults to the current calendar month.
+
+Supports query parameters `start_date` and `end_date` (ISO 8601 dates).
+
+```bash cURL
+curl --request GET \
+  --url 'https://your-domain.com/api/admin/payments/stats?start_date=2026-01-01&end_date=2026-03-31' \
+  --header 'Authorization: Bearer {token}'
+```
+
+<ResponseField name="data.total_payments" type="number">
+  Sum of all completed payment amounts in the period.
+</ResponseField>
+
+<ResponseField name="data.payment_count" type="integer">
+  Number of completed payments in the period.
+</ResponseField>
+
+<ResponseField name="data.payment_methods" type="array">
+  Per-method breakdown with `count` and `total` fields.
+</ResponseField>
+
+<ResponseField name="data.daily_payments" type="array">
+  Per-day breakdown with `date`, `count`, and `total` fields.
+</ResponseField>
+
+### Get payments for an invoice
+
+**GET** `/api/admin/payments/invoice/{invoiceId}`
+
+Returns all payment records linked to a specific invoice, ordered by payment date descending.
+
+### Get payment
+
+**GET** `/api/admin/payments/{id}`
+
+### Update payment
+
+**PUT** `/api/admin/payments/{id}`
+
+Only `payment_notes` and `transaction_id` can be updated after a payment is recorded.
+
+<ParamField body="payment_notes" type="string">Updated internal notes.</ParamField>
+<ParamField body="transaction_id" type="string">Updated reference number. Maximum 255 characters.</ParamField>
+
+### Refund payment
+
+**POST** `/api/admin/payments/{id}/refund`
+
+<Warning>
+  Refunds are irreversible. The payment status is set to `refunded` and the linked invoice's `amount_paid` is reduced accordingly. Confirm the refund amount and reason before proceeding.
+</Warning>
+
+<ParamField body="reason" type="string">
+  Reason for the refund. Defaults to `"Refund requested"` if omitted.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-domain.com/api/admin/payments/205/refund \
+  --header 'Authorization: Bearer {token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "reason": "Student withdrew from program before semester start." }'
+```
+
+---
+
+## Insurance
+
+Student insurance records must be verified before a registration is fully approved. Admins review uploaded documents and set verification outcomes.
+
+### List insurance records
+
+**GET** `/api/admin/insurance`
+
+Returns all student insurance records.
+
+### List pending-verification records
+
+**GET** `/api/admin/insurance/pending-verification`
+
+Returns insurance submissions awaiting admin review.
+
+### Verify insurance
+
+**POST** `/api/admin/insurance/{id}/verify`
+
+Marks the insurance record as verified.
+
+### Reject insurance
+
+**POST** `/api/admin/insurance/{id}/reject`
+
+Marks the insurance record as rejected.
+
+### Request resubmission
+
+**POST** `/api/admin/insurance/{id}/request-resubmission`
+
+Notifies the student to upload a corrected document.
+
+### Get insurance configuration
+
+**GET** `/api/admin/insurance/config`
+
+Returns system-level insurance settings (e.g. accepted document types, expiry requirements).
+
+### Update insurance configuration
+
+**PUT** `/api/admin/insurance/config`
+
+Updates system-level insurance settings.

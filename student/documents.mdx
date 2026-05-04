@@ -1,0 +1,221 @@
+---
+title: "Request and download official student documents"
+description: "Download admission letters, ID cards, timetables, exam timetables, and payment receipts, and submit formal document requests through the student portal."
+---
+
+The Academic Nexus Portal provides instant access to a range of official documents you can download on demand, as well as a formal document request workflow for items that require administrative processing. All downloads require an active authenticated session; the server streams each file directly to your browser without storing a temporary link.
+
+## Instant document downloads
+
+The following documents are generated on demand and returned as downloadable files.
+
+### Admission letter
+
+Your official admission letter from the institution:
+
+```http
+GET /api/student/documents/admission-letter
+```
+
+### Student ID card
+
+A printable version of your student ID card:
+
+```http
+GET /api/student/documents/id-card
+```
+
+### Course registration form
+
+The official course registration form pre-filled with your current enrolled courses:
+
+```http
+GET /api/student/enrollment/registration-form
+```
+
+### Timetable PDF
+
+Your weekly class schedule formatted as a printable PDF:
+
+```http
+GET /api/student/timetable/download
+```
+
+### Exam timetable
+
+Your examination schedule for the current semester:
+
+```http
+GET /api/student/exams/timetable/download
+```
+
+### Payment receipts
+
+To download the receipt for a specific payment, use the payment's numeric ID:
+
+```http
+GET /api/student/payments/{id}/receipt
+```
+
+Retrieve payment IDs from the payment history endpoint at `GET /api/student/registration/payment-history`.
+
+<Info>
+All download endpoints return files with appropriate `Content-Disposition` headers. If a download does not start automatically, right-click the link in your browser and choose "Save link as".
+</Info>
+
+## Print forms page
+
+The frontend route `/student/print-forms` consolidates all of the above downloads into a single page. It lists each document type with a download button that triggers the corresponding API call. Use this page when you need several documents at once without navigating to individual sections.
+
+<Tip>
+Documents such as the admission letter and ID card are generated from the data currently on your profile. Ensure your profile details are correct before printing official copies.
+</Tip>
+
+## Formal document requests
+
+Some documents require administrative preparation time and cannot be generated instantly. These are handled through the formal document request workflow, accessible at `/student/document-requests`.
+
+### Listing existing requests
+
+```http
+GET /api/student/document-requests
+```
+
+Returns all document requests you have submitted, along with their current status (`pending`, `processing`, `ready`, `rejected`).
+
+### Creating a new request
+
+```http
+POST /api/student/document-requests
+```
+
+<CodeGroup>
+
+```http Request
+POST /api/student/document-requests
+```
+
+```json Body
+{
+  "document_type": "transcript",
+  "purpose": "Employment application",
+  "notes": "Please include all semesters from 2021 onwards."
+}
+```
+
+</CodeGroup>
+
+Once submitted, an administrator reviews and processes the request. You receive a notification when the document is ready to download.
+
+### Viewing a specific request
+
+```http
+GET /api/student/document-requests/{id}
+```
+
+Returns the full detail of a single request including status, submission date, and any admin notes.
+
+### Downloading a completed request
+
+Once a request is marked as ready, download the prepared document:
+
+```http
+GET /api/student/document-requests/{id}/download
+```
+
+### Cancelling a request
+
+If you submitted a request in error, you can delete it while it is still in `pending` status:
+
+```http
+DELETE /api/student/document-requests/{id}
+```
+
+<Warning>
+You cannot cancel a request that is already in `processing` or `ready` status. Contact the registrar's office directly if you need to withdraw a request at that stage.
+</Warning>
+
+## Feedback submission
+
+If you encounter issues with a document or want to raise a concern about any aspect of your academic experience, you can submit feedback through the portal.
+
+### Getting feedback categories
+
+Retrieve the available categories before submitting:
+
+```http
+GET /api/student/feedback/categories
+```
+
+Common categories include academic issues, administrative matters, facility concerns, and IT support.
+
+### Submitting feedback
+
+```http
+POST /api/student/feedback/submit
+```
+
+<CodeGroup>
+
+```http Request
+POST /api/student/feedback/submit
+```
+
+```json Body
+{
+  "category_id": 3,
+  "subject": "Incorrect grade on transcript",
+  "description": "My grade for CS301 shows B+ but the lecturer confirmed A−.",
+  "priority": "high"
+}
+```
+
+</CodeGroup>
+
+Feedback is routed to the appropriate staff member based on the category you select. You can track the status of your submissions at `GET /api/student/feedback/history`.
+
+## Document request workflow
+
+<Steps>
+  <Step title="Check available categories">
+    For feedback, retrieve categories at `GET /api/student/feedback/categories`. For document requests, the `document_type` field accepts any string describing the document you need.
+  </Step>
+  <Step title="Submit the request">
+    Use `POST /api/student/document-requests` with a clear description of the document type and its intended purpose.
+  </Step>
+  <Step title="Monitor status">
+    Poll `GET /api/student/document-requests` or check `/student/document-requests` in the portal to watch for status changes.
+  </Step>
+  <Step title="Download when ready">
+    When status changes to `ready`, use `GET /api/student/document-requests/{id}/download` to retrieve the file.
+  </Step>
+</Steps>
+
+## API reference summary
+
+<CardGroup cols={2}>
+  <Card title="Admission letter" icon="envelope-open-text">
+    `GET /api/student/documents/admission-letter`
+  </Card>
+  <Card title="Student ID card" icon="id-card">
+    `GET /api/student/documents/id-card`
+  </Card>
+  <Card title="Registration form" icon="file-lines">
+    `GET /api/student/enrollment/registration-form`
+  </Card>
+  <Card title="Timetable PDF" icon="calendar">
+    `GET /api/student/timetable/download`
+  </Card>
+  <Card title="Exam timetable" icon="file-arrow-down">
+    `GET /api/student/exams/timetable/download`
+  </Card>
+  <Card title="Payment receipt" icon="receipt">
+    `GET /api/student/payments/{id}/receipt`
+  </Card>
+  <Card title="Document requests" icon="inbox">
+    `GET /api/student/document-requests`
+  </Card>
+  <Card title="Submit feedback" icon="comment-dots">
+    `POST /api/student/feedback/submit`
+  </Card>
+</CardGroup>

@@ -1,0 +1,119 @@
+---
+title: "Student dashboard overview and navigation"
+description: "The student dashboard shows enrolled courses, attendance summary, GPA widget, upcoming deadlines, and fee status all in one place."
+---
+
+After logging in, you land at `/student` — the central hub of the Academic Nexus Portal. The dashboard gives you a real-time snapshot of your academic standing without requiring you to navigate to separate sections. It pulls live data from the backend on load, so everything you see reflects your current enrollment, grades, and attendance state.
+
+## What the dashboard displays
+
+The dashboard is organised into several distinct areas, each surfacing a different dimension of your academic life.
+
+### Welcome banner
+
+At the top of the page is a personalised welcome banner that displays your full name and student ID (formatted as `STU` followed by your numeric ID, zero-padded to three digits). The banner confirms you are logged into the correct account before you interact with anything else.
+
+### Quick-stats row
+
+Three stat cards appear below the banner:
+
+| Card | What it shows |
+|---|---|
+| **Current GPA** | Your `current_gpa` value alongside the number of courses completed and total credit hours earned. |
+| **Registered Courses** | The count of enrollments with status `enrolled` and the total credit hours for those courses. |
+| **Attendance** | Your overall attendance percentage. The label beneath the number reads *Excellent attendance* (≥ 90 %), *Good attendance* (≥ 75 %), or *Needs improvement* (< 75 %). |
+
+<Info>
+The GPA figure comes from `GET /api/student/gpa` and the attendance percentage from `GET /api/students/{studentId}/attendance`. Both requests fire in parallel when the dashboard loads.
+</Info>
+
+### Grade distribution and assignment performance
+
+When grade data is available the dashboard renders two additional cards below the course list:
+
+- **Assignment Performance** — shows total assignments, average score, highest score, and lowest score as a percentage, with a progress bar for overall performance.
+- **Grade Distribution** — lists each letter grade (A+, A, A−, B+, B, …, F) alongside the count of grades you have received in that band.
+
+A **Recent Performance Trend** card spanning the full width then shows your course average, assignment average, and a trend direction (`improving`, `stable`, or `declining`) over the past six months.
+
+### Today's timetable and announcements
+
+Two side-by-side cards show:
+
+- **Today's Timetable** — your scheduled classes for the current day with times and room numbers.
+- **Recent Announcements** — the latest institutional announcements tagged by type (`important`, `info`, `event`).
+
+### Current courses
+
+A full-width card lists every course you are currently enrolled in. Each course entry shows the course name, course code, assigned teacher, credit count, and enrollment status. Clicking a course navigates to `/courses/{courseId}`.
+
+## Navigation sidebar
+
+The `StudentSidebar` component is present on every page within the student section. It provides direct links to all major areas:
+
+<CardGroup cols={2}>
+  <Card title="Timetable" icon="clock" href="/student/courses-enrollment">
+    View your weekly class schedule. Route: `/student/timetable`
+  </Card>
+  <Card title="Calendar" icon="calendar-days" href="/student/courses-enrollment">
+    Browse academic events, holidays, and deadlines. Route: `/student/calendar`
+  </Card>
+  <Card title="Progress" icon="chart-line" href="/student/grades-gpa">
+    Track degree completion requirements. Route: `/student/progress`
+  </Card>
+  <Card title="Waitlist" icon="list-checks" href="/student/courses-enrollment">
+    Manage your course waitlist positions. Route: `/student/waitlist`
+  </Card>
+  <Card title="Profile" icon="user" href="/student/dashboard">
+    View and edit personal and academic details. Route: `/student/profile`
+  </Card>
+  <Card title="Print Forms" icon="file-text" href="/student/documents">
+    Download registration forms, ID cards, and letters. Route: `/student/print-forms`
+  </Card>
+  <Card title="Document Requests" icon="inbox" href="/student/documents">
+    Submit and track formal document requests. Route: `/student/document-requests`
+  </Card>
+  <Card title="Fees & Payments" icon="credit-card" href="/student/fees-payments">
+    View invoices, payment history, and fee status. Route: `/student/fees`
+  </Card>
+</CardGroup>
+
+## Navigating from the dashboard
+
+The four quick-access cards in the middle of the dashboard are clickable shortcuts. Each card navigates to the corresponding section when clicked:
+
+<Steps>
+  <Step title="Timetable">
+    Click the **Timetable** card to go to `/student/timetable` and view your full weekly schedule.
+  </Step>
+  <Step title="Calendar">
+    Click the **Calendar** card to go to `/student/calendar` and see upcoming academic events filtered by type and semester.
+  </Step>
+  <Step title="Progress">
+    Click the **Progress** card to go to `/student/progress` and open the degree progress tracker, which shows completed versus remaining graduation requirements.
+  </Step>
+  <Step title="Waitlist">
+    Click the **Waitlist** card to go to `/student/waitlist` and manage your positions in full course queues.
+  </Step>
+</Steps>
+
+<Tip>
+If a section shows a loading spinner for more than a few seconds, refresh the page. A network interruption during the parallel data-fetch can leave certain cards empty without displaying an error.
+</Tip>
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Courses and enrollment" icon="book-open" href="/student/courses-enrollment">
+    Enroll in courses, check prerequisites, and manage your schedule.
+  </Card>
+  <Card title="Grades and GPA" icon="trending-up" href="/student/grades-gpa">
+    View per-course grades, cumulative GPA, and degree progress.
+  </Card>
+  <Card title="Attendance" icon="calendar-check" href="/student/attendance">
+    Track attendance records and absence counts per course.
+  </Card>
+  <Card title="Fees and payments" icon="receipt" href="/student/fees-payments">
+    Check outstanding fees, download invoices, and verify payments.
+  </Card>
+</CardGroup>

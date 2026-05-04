@@ -1,0 +1,82 @@
+---
+title: "Lecturer dashboard: courses, assessments, results"
+description: "What the lecturer dashboard shows — assigned courses, pending CA submissions, results awaiting moderation, and statistics overview."
+---
+
+The lecturer dashboard is the central hub for every lecturer account in Academic Nexus Portal. After logging in, users with the `lecturer` role are routed to `/lecturer`, where a tabbed interface surfaces the two primary workspaces: **CA Management** for continuous assessment scores and **Results Management** for final exam results. Both modules load their own statistics and course lists independently, so you can switch between them without losing your place.
+
+## Accessing the dashboard
+
+The dashboard is available at the `/lecturer` route and is restricted to accounts assigned the `lecturer` role. Attempting to access it with a `student` or `admin` account will result in an authorization error. Authentication is enforced via Laravel Sanctum on all `/api/lecturer/*` endpoints.
+
+<Info>
+  The portal routes you to the correct dashboard automatically after login. You do not need to navigate to `/lecturer` manually.
+</Info>
+
+## Dashboard layout
+
+The dashboard renders a two-tab layout at the top of the page:
+
+| Tab | Label | Route context |
+|-----|-------|---------------|
+| CA Management | **CA Management** | `/api/lecturer/ca/*` |
+| Results Management | **Results Management** | `/api/lecturer/results/*` |
+
+Each tab mounts its own component and fetches data from the backend when activated. The tab state is not persisted across page reloads — the dashboard always opens on the **CA Management** tab by default.
+
+## Statistics overview
+
+Both sub-modules fetch aggregate statistics from their respective endpoints when the dashboard loads. These statistics appear as four summary cards at the top of each tab.
+
+### CA statistics
+
+**`GET /api/lecturer/ca/statistics`**
+
+Returns a summary of all continuous assessment activity across the lecturer's assigned courses.
+
+```json
+{
+  "success": true,
+  "data": {
+    "total_courses": 5,
+    "total_assessments": 312,
+    "locked_assessments": 180,
+    "pending_approval": 42,
+    "approved_assessments": 130,
+    "rejected_assessments": 8
+  }
+}
+```
+
+### Results statistics
+
+**`GET /api/lecturer/results/statistics`**
+
+Returns a summary of final exam result status across the lecturer's courses.
+
+```json
+{
+  "success": true,
+  "data": {
+    "total_courses": 5,
+    "total_exams": 290,
+    "locked_exams": 140,
+    "pending_moderation": 55,
+    "moderated_exams": 80,
+    "published_exams": 75
+  }
+}
+```
+
+## Navigating between sub-modules
+
+Click the tab labels at the top of the dashboard to switch between **CA Management** and **Results Management**. Both tabs are always visible regardless of your current course selection.
+
+<CardGroup cols={2}>
+  <Card title="CA Management" icon="pencil" href="/lecturer/continuous-assessment">
+    Enter, update, lock, and submit continuous assessment scores for your assigned courses.
+  </Card>
+  <Card title="Results Management" icon="file-lines" href="/lecturer/results-moderation">
+    Enter final exam scores, lock results, and submit them to the admin moderation queue.
+  </Card>
+</CardGroup>

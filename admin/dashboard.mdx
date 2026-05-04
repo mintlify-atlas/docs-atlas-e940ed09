@@ -1,0 +1,125 @@
+---
+title: "Admin dashboard: institution-wide overview"
+description: "What the admin dashboard shows — enrollment statistics, pending approvals, fee collection summaries, accommodation occupancy, and system health metrics."
+---
+
+The admin dashboard is the central control panel for institution-wide management. After logging in as an administrator, you are directed to `/admin`, where the `AdminOverview` component renders a live snapshot of the institution's current state — including total students and teachers, active courses, pending approvals, and recent system activity. All statistics are fetched from `GET /api/admin/dashboard`.
+
+## Dashboard statistics
+
+The overview section surfaces four headline metrics drawn from the dashboard API response:
+
+| Metric | API field |
+|---|---|
+| Total students | `total_students` |
+| Faculty members | `faculty_count` |
+| Active courses | `active_courses` |
+| Departments | `departments_count` |
+
+<Note>
+  Statistics refresh each time you load the dashboard. The `AdminOverview` component also shows percentage changes compared to the previous month alongside each figure.
+</Note>
+
+## Navigation sidebar
+
+Every admin page shares the same sidebar. Use it to navigate between all administrative sub-sections:
+
+<AccordionGroup>
+  <Accordion title="People">
+    Students, Teachers, Departments
+  </Accordion>
+  <Accordion title="Academic operations">
+    Courses, Enrollments, Results, Registrations, Timetable, Calendar
+  </Accordion>
+  <Accordion title="Finance and welfare">
+    Fees, Accommodation, Insurance
+  </Accordion>
+  <Accordion title="System">
+    Feedback, Bulk Import
+  </Accordion>
+</AccordionGroup>
+
+## Administrative task cards
+
+The dashboard displays six quick-action cards that link directly to the most time-sensitive admin workflows:
+
+<CardGroup cols={3}>
+  <Card title="Registrations" icon="clipboard-list" href="/admin/enrollment-management">
+    Review and manage student course registration requests.
+  </Card>
+  <Card title="Insurance" icon="shield" href="/admin/accommodation">
+    Verify student insurance document submissions.
+  </Card>
+  <Card title="Enrollments" icon="user-check" href="/admin/enrollment-management">
+    Approve or reject enrollment confirmation requests.
+  </Card>
+  <Card title="Results moderation" icon="award" href="/admin/enrollment-management">
+    Review CA scores and final exam results submitted by lecturers.
+  </Card>
+  <Card title="Accommodations" icon="bed-double" href="/admin/accommodation">
+    Allocate hostel rooms to students and process vacations.
+  </Card>
+  <Card title="Feedback" icon="message-square" href="/admin/accommodation">
+    View, assign, and resolve student feedback submissions.
+  </Card>
+</CardGroup>
+
+## Dashboard API
+
+<CodeGroup>
+
+```bash Request
+GET /api/admin/dashboard
+Authorization: Bearer {token}
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "total_students": 1234,
+    "faculty_count": 89,
+    "active_courses": 156,
+    "departments_count": 12,
+    "pending_enrollments": 45,
+    "pending_registrations": 18,
+    "outstanding_fees": 23400.00,
+    "accommodation_occupancy": 87
+  }
+}
+```
+
+</CodeGroup>
+
+## Quick actions
+
+The dashboard also provides direct shortcuts for the most common administrative tasks:
+
+<CardGroup cols={3}>
+  <Card title="Add student" icon="user-plus" href="/admin/user-management">
+    Register a new student record.
+  </Card>
+  <Card title="Create course" icon="book-plus" href="/admin/user-management">
+    Set up a new course offering.
+  </Card>
+  <Card title="Manage timetable" icon="clock" href="/admin/system-settings">
+    Manage class schedules and room assignments.
+  </Card>
+  <Card title="Academic calendar" icon="calendar-days" href="/admin/system-settings">
+    Configure academic events and key dates.
+  </Card>
+  <Card title="Manage departments" icon="building-2" href="/admin/user-management">
+    Organise academic departments and assign heads.
+  </Card>
+  <Card title="Bulk import" icon="upload" href="/admin/user-management">
+    Import students, teachers, or courses from CSV.
+  </Card>
+</CardGroup>
+
+## Recent activity feed
+
+Beneath the statistics grid, the dashboard displays a chronological activity feed showing the latest events across the system — new registration requests, completed insurance verifications, and batch enrollment approvals. This feed is read-only and updates each time you load the page.
+
+<Tip>
+  Use the "View All" button in the Recent Enrollments table to jump directly to the full enrollment management interface at `/admin/enrollments`.
+</Tip>
